@@ -27,10 +27,25 @@ export function usePlanner() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(events))
   }, [events])
 
-  const selected = useMemo(() => events.find((e) => e.id === selectedId) ?? null, [events, selectedId])
-  const conflictEvent = useMemo(() => events.find((e) => e.id === lastConflictId) ?? null, [events, lastConflictId])
-  const conflicts = useMemo(() => conflictEvent ? conflictsFor(conflictEvent, events) : [], [conflictEvent, events])
-  const suggestion = useMemo(() => conflictEvent ? findNextAvailableSlot(conflictEvent, events) : null, [conflictEvent, events])
+  const selected = useMemo(
+    () => events.find((e) => e.id === selectedId) ?? null,
+    [events, selectedId],
+  )
+
+  const conflictEvent = useMemo(
+    () => events.find((e) => e.id === lastConflictId) ?? null,
+    [events, lastConflictId],
+  )
+
+  const conflicts = useMemo(
+    () => conflictEvent ? conflictsFor(conflictEvent, events) : [],
+    [conflictEvent, events],
+  )
+
+  const suggestion = useMemo(
+    () => conflictEvent ? findNextAvailableSlot(conflictEvent, events) : null,
+    [conflictEvent, events],
+  )
 
   const commit = (next: PlannerEvent[]) => {
     undoStack.current.push(events)
@@ -39,18 +54,37 @@ export function usePlanner() {
   }
 
   const updateEvent = (id: string, patch: Partial<PlannerEvent>) => {
-    const next = events.map((event) => (event.id === id ? { ...event, ...patch } : event))
+    const current = events.find((event) => event.id === id)
+    if (!current || current.locked) return
+
+    const next = events.map((event) =>
+      event.id === id ? { ...event, ...patch } : event
+    )
+
     commit(next)
     const changed = next.find((e) => e.id === id)
-    setLastConflictId(changed && conflictsFor(changed, next).length ? id : null)
+    setLastConflictId(
+      changed && conflictsFor(changed, next).length ? id : null
+    )
   }
 
-  const createEvent = (event: PlannerEvent) => {
-    commit([...events, event])
-    setLastConflictId(conflictsFor(event, [...events, event]).length ? event.id : null)
+  const createEvents = (created: PlannerEvent[]) => {
+    if (created.length === 0) return
+    const next = [...events, ...created]
+    commit(next)
+
+    const conflicted = created.find(
+      (event) => conflictsFor(event, next).length > 0
+    )
+    setLastConflictId(conflicted?.id ?? null)
   }
+
+  const createEvent = (event: PlannerEvent) => createEvents([event])
 
   const deleteEvent = (id: string) => {
+    const target = events.find((event) => event.id === id)
+    if (target?.locked) return
+
     commit(events.filter((e) => e.id !== id))
     setSelectedId((current) => (current === id ? null : current))
     setLastConflictId((current) => (current === id ? null : current))
@@ -73,7 +107,7 @@ export function usePlanner() {
   }
 
   const acceptSuggestion = () => {
-    if (!conflictEvent || !suggestion) return
+    if (!conflictEvent || !suggestion || conflictEvent.locked) return
     updateEvent(conflictEvent.id, suggestion)
     setLastConflictId(null)
   }
@@ -85,6 +119,7 @@ export function usePlanner() {
     setSelectedId,
     updateEvent,
     createEvent,
+    createEvents,
     deleteEvent,
     undo,
     redo,

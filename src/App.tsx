@@ -25,9 +25,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', handle)
   }, [planner.undo, planner.redo])
 
-  const create = (event: PlannerEvent) => {
-    planner.createEvent(event)
-    planner.setSelectedId(event.id)
+  const create = (created: PlannerEvent[]) => {
+    planner.createEvents(created)
+    planner.setSelectedId(created[0]?.id ?? null)
     setQuick(null)
   }
 
@@ -46,7 +46,17 @@ export default function App() {
           />
         ) : <NowView events={planner.events} />}
       </div>
-      {quick && <QuickCreate day={quick.day} startMin={quick.startMin} onClose={() => setQuick(null)} onCreate={create}/>} 
+
+      {quick && (
+        <QuickCreate
+          day={quick.day}
+          startMin={quick.startMin}
+          events={planner.events}
+          onClose={() => setQuick(null)}
+          onCreate={create}
+        />
+      )}
+
       {planner.conflictEvent && planner.conflicts.length > 0 && (
         <ConflictBar
           event={planner.conflictEvent}
