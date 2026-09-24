@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CommandPalette } from './components/CommandPalette'
 import { ConflictBar } from './components/ConflictBar'
 import { Header } from './components/Header'
 import { NowView } from './components/NowView'
@@ -12,10 +13,18 @@ export default function App() {
   const planner = usePlanner()
   const [view, setView] = useState<'week' | 'now'>('week')
   const [quick, setQuick] = useState<{ day: number; startMin: number } | null>(null)
+  const [commandOpen, setCommandOpen] = useState(false)
 
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return
+
+      if (event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandOpen(true)
+        return
+      }
+
       if (event.key.toLowerCase() !== 'z') return
       event.preventDefault()
       if (event.shiftKey) planner.redo()
@@ -33,7 +42,11 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header view={view} onView={setView}/>
+      <Header
+        view={view}
+        onView={setView}
+        onCommand={() => setCommandOpen(true)}
+      />
       <div className="app-body">
         <Sidebar />
         {view === 'week' ? (
@@ -46,6 +59,17 @@ export default function App() {
           />
         ) : <NowView events={planner.events} />}
       </div>
+
+      {commandOpen && (
+        <CommandPalette
+          events={planner.events}
+          onClose={() => setCommandOpen(false)}
+          onCreate={(created) => {
+            create(created)
+            setCommandOpen(false)
+          }}
+        />
+      )}
 
       {quick && (
         <QuickCreate
