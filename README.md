@@ -1,0 +1,3 @@
+# Horizon Planner
+
+Initializing repository…
