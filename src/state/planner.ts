@@ -6,6 +6,7 @@ import {
   currentCloudUser,
   loadCloudSnapshot,
   saveCloudSnapshot,
+  syncProfileTimezone,
 } from '../data/cloudSnapshot'
 import { supabase } from '../lib/supabase'
 
@@ -127,6 +128,17 @@ export function usePlanner() {
       setCloudStatus('syncing')
 
       try {
+        const browserTimezone =
+          Intl.DateTimeFormat().resolvedOptions().timeZone
+
+        if (browserTimezone) {
+          try {
+            await syncProfileTimezone(user.id, browserTimezone)
+          } catch {
+            // Timezone sync is helpful metadata, not a blocker for planning sync.
+          }
+        }
+
         const remote = await loadCloudSnapshot(user.id)
         if (cancelled) return
 
@@ -139,6 +151,14 @@ export function usePlanner() {
           skipNextCloudPushRef.current = true
           setEvents(remote.events)
         } else {
+          if (modifiedAtRef.current <= 0) {
+            modifiedAtRef.current = Date.now()
+            persistLocal(
+              eventsRef.current,
+              modifiedAtRef.current,
+            )
+          }
+
           await saveCloudSnapshot(
             user.id,
             eventsRef.current,

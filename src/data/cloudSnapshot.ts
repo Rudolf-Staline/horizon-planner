@@ -99,3 +99,18 @@ export async function saveCloudSnapshot(
 
   if (error) throw error
 }
+
+
+export async function syncProfileTimezone(
+  userId: string,
+  timezone: string,
+) {
+  if (!supabase) return
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ timezone })
+    .eq('id', userId)
+
+  if (error) throw error
+}
