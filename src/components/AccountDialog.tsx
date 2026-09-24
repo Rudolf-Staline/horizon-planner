@@ -69,8 +69,8 @@ export function AccountDialog({
           <div>
             <h2>Compte & synchronisation</h2>
             <p>
-              Horizon reste local-first. Le cloud sert à retrouver ton planning
-              sur plusieurs appareils.
+              Horizon garde un cache local isolé par compte et le synchronise
+              avec ton espace cloud.
             </p>
           </div>
           <button className="icon-button" onClick={onClose}>
@@ -109,7 +109,7 @@ export function AccountDialog({
               onClick={logout}
             >
               <LogOut size={16}/>
-              Se déconnecter
+              Se déconnecter de cet appareil
             </button>
           </div>
         ) : sent ? (

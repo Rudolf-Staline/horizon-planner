@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
-import { seedEvents } from '../domain/seed'
 import { conflictsFor, findNextAvailableSlot } from '../domain/scheduling'
 import {
   currentCloudUser,
@@ -10,102 +9,114 @@ import {
 } from '../data/cloudSnapshot'
 import { supabase } from '../lib/supabase'
 
-const STORAGE_KEY = 'horizon-planner-v1'
+const LEGACY_STORAGE_KEY = 'horizon-planner-v1'
+const STORAGE_PREFIX = 'horizon-planner-v2'
 
 type Snapshot = PlannerEvent[]
 
 type LocalEnvelope = {
-  schemaVersion: 1
+  schemaVersion: 2
   events: PlannerEvent[]
   modifiedAt: number
 }
 
 export type CloudStatus = 'local' | 'syncing' | 'synced' | 'error'
+export type AuthStatus = 'loading' | 'anonymous' | 'authenticated'
 
-function loadLocalSnapshot(): LocalEnvelope {
+function storageKey(userId: string) {
+  return `${STORAGE_PREFIX}:${userId}`
+}
+
+function loadLocalSnapshot(userId: string): LocalEnvelope | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      return {
-        schemaVersion: 1,
-        events: seedEvents,
-        modifiedAt: 0,
-      }
-    }
+    const raw = localStorage.getItem(storageKey(userId))
+    if (!raw) return null
 
     const parsed = JSON.parse(raw)
 
-    // Backward compatibility with the first prototype, which stored the
-    // PlannerEvent[] directly.
-    if (Array.isArray(parsed)) {
-      return {
-        schemaVersion: 1,
-        events: parsed,
-        modifiedAt: 0,
-      }
-    }
-
     if (
       parsed &&
-      parsed.schemaVersion === 1 &&
+      parsed.schemaVersion === 2 &&
       Array.isArray(parsed.events) &&
       typeof parsed.modifiedAt === 'number'
     ) {
       return parsed as LocalEnvelope
     }
   } catch {
-    // Fall through to seed data.
+    return null
   }
 
-  return {
-    schemaVersion: 1,
-    events: seedEvents,
-    modifiedAt: 0,
-  }
+  return null
 }
 
 function persistLocal(
+  userId: string,
   events: PlannerEvent[],
   modifiedAt: number,
 ) {
   const envelope: LocalEnvelope = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     events,
     modifiedAt,
   }
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(envelope))
+  localStorage.setItem(
+    storageKey(userId),
+    JSON.stringify(envelope),
+  )
+}
+
+function clearLocalCache(userId: string | null) {
+  if (userId) {
+    localStorage.removeItem(storageKey(userId))
+  }
+
+  // Never expose the old account-agnostic cache again.
+  localStorage.removeItem(LEGACY_STORAGE_KEY)
 }
 
 export function usePlanner() {
-  const initialRef = useRef<LocalEnvelope | null>(null)
-  if (!initialRef.current) {
-    initialRef.current = loadLocalSnapshot()
-  }
-
-  const [events, setEvents] = useState<PlannerEvent[]>(
-    initialRef.current.events,
-  )
+  const [events, setEvents] = useState<PlannerEvent[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [lastConflictId, setLastConflictId] = useState<string | null>(null)
-  const [cloudStatus, setCloudStatus] = useState<CloudStatus>('local')
+  const [cloudStatus, setCloudStatus] = useState<CloudStatus>('syncing')
   const [cloudUserEmail, setCloudUserEmail] = useState<string | null>(null)
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('loading')
 
   const undoStack = useRef<Snapshot[]>([])
   const redoStack = useRef<Snapshot[]>([])
-  const modifiedAtRef = useRef(initialRef.current.modifiedAt)
-  const eventsRef = useRef(events)
+  const modifiedAtRef = useRef(0)
+  const eventsRef = useRef<PlannerEvent[]>([])
   const cloudUserIdRef = useRef<string | null>(null)
   const skipNextCloudPushRef = useRef(false)
 
-  useEffect(() => {
-    eventsRef.current = events
-    persistLocal(events, modifiedAtRef.current)
-  }, [events])
+  const resetPrivateState = (clearCache: boolean) => {
+    const previousUserId = cloudUserIdRef.current
+
+    if (clearCache) {
+      clearLocalCache(previousUserId)
+    } else {
+      localStorage.removeItem(LEGACY_STORAGE_KEY)
+    }
+
+    cloudUserIdRef.current = null
+    modifiedAtRef.current = 0
+    eventsRef.current = []
+    undoStack.current = []
+    redoStack.current = []
+    skipNextCloudPushRef.current = false
+
+    setEvents([])
+    setSelectedId(null)
+    setLastConflictId(null)
+    setCloudUserEmail(null)
+  }
 
   useEffect(() => {
     if (!supabase) {
-      setCloudStatus('local')
+      resetPrivateState(false)
+      setCloudStatus('error')
+      setAuthStatus('anonymous')
       return
     }
 
@@ -117,11 +128,14 @@ export function usePlanner() {
       if (cancelled) return
 
       if (!user) {
-        cloudUserIdRef.current = null
-        setCloudUserEmail(null)
+        resetPrivateState(true)
         setCloudStatus('local')
+        setAuthStatus('anonymous')
         return
       }
+
+      setAuthStatus('loading')
+      localStorage.removeItem(LEGACY_STORAGE_KEY)
 
       cloudUserIdRef.current = user.id
       setCloudUserEmail(user.email ?? null)
@@ -131,44 +145,70 @@ export function usePlanner() {
         const browserTimezone =
           Intl.DateTimeFormat().resolvedOptions().timeZone
 
-        if (browserTimezone) {
-          try {
-            await syncProfileTimezone(user.id, browserTimezone)
-          } catch {
-            // Timezone sync is helpful metadata, not a blocker for planning sync.
-          }
-        }
+        const [remote] = await Promise.all([
+          loadCloudSnapshot(user.id),
+          browserTimezone
+            ? syncProfileTimezone(user.id, browserTimezone)
+                .catch(() => undefined)
+            : Promise.resolve(),
+        ])
 
-        const remote = await loadCloudSnapshot(user.id)
         if (cancelled) return
 
-        if (
-          remote &&
-          remote.modifiedAt > modifiedAtRef.current
-        ) {
-          modifiedAtRef.current = remote.modifiedAt
-          eventsRef.current = remote.events
-          skipNextCloudPushRef.current = true
-          setEvents(remote.events)
-        } else {
-          if (modifiedAtRef.current <= 0) {
-            modifiedAtRef.current = Date.now()
-            persistLocal(
-              eventsRef.current,
-              modifiedAtRef.current,
-            )
-          }
+        const local = loadLocalSnapshot(user.id)
 
+        let nextEvents: PlannerEvent[] = []
+        let nextModifiedAt = 0
+        let shouldPush = false
+
+        if (remote && local) {
+          if (remote.modifiedAt >= local.modifiedAt) {
+            nextEvents = remote.events
+            nextModifiedAt = remote.modifiedAt
+          } else {
+            nextEvents = local.events
+            nextModifiedAt = local.modifiedAt
+            shouldPush = true
+          }
+        } else if (remote) {
+          nextEvents = remote.events
+          nextModifiedAt = remote.modifiedAt
+        } else if (local) {
+          nextEvents = local.events
+          nextModifiedAt = local.modifiedAt
+          shouldPush = true
+        } else {
+          nextEvents = []
+          nextModifiedAt = Date.now()
+          shouldPush = true
+        }
+
+        modifiedAtRef.current = nextModifiedAt
+        eventsRef.current = nextEvents
+        persistLocal(user.id, nextEvents, nextModifiedAt)
+
+        if (shouldPush) {
           await saveCloudSnapshot(
             user.id,
-            eventsRef.current,
-            modifiedAtRef.current,
+            nextEvents,
+            nextModifiedAt,
           )
         }
 
-        if (!cancelled) setCloudStatus('synced')
+        if (cancelled) return
+
+        skipNextCloudPushRef.current = true
+        setEvents(nextEvents)
+        setCloudStatus('synced')
+        setAuthStatus('authenticated')
       } catch {
-        if (!cancelled) setCloudStatus('error')
+        if (cancelled) return
+
+        // Do not reveal stale local planning data if cloud identity
+        // reconciliation failed.
+        resetPrivateState(false)
+        setCloudStatus('error')
+        setAuthStatus('anonymous')
       }
     }
 
@@ -190,7 +230,13 @@ export function usePlanner() {
 
   useEffect(() => {
     const userId = cloudUserIdRef.current
-    if (!userId) return
+
+    if (authStatus !== 'authenticated' || !userId) {
+      return
+    }
+
+    eventsRef.current = events
+    persistLocal(userId, events, modifiedAtRef.current)
 
     if (skipNextCloudPushRef.current) {
       skipNextCloudPushRef.current = false
@@ -213,7 +259,7 @@ export function usePlanner() {
     }, 650)
 
     return () => window.clearTimeout(timer)
-  }, [events])
+  }, [events, authStatus])
 
   const selected = useMemo(
     () => events.find((e) => e.id === selectedId) ?? null,
@@ -238,12 +284,16 @@ export function usePlanner() {
   )
 
   const replaceEvents = (next: PlannerEvent[]) => {
+    if (authStatus !== 'authenticated') return
+
     modifiedAtRef.current = Date.now()
     eventsRef.current = next
     setEvents(next)
   }
 
   const commit = (next: PlannerEvent[]) => {
+    if (authStatus !== 'authenticated') return
+
     undoStack.current.push(events)
     redoStack.current = []
     replaceEvents(next)
@@ -293,6 +343,7 @@ export function usePlanner() {
         ? { ...event, completed: !event.completed }
         : event
     )
+
     commit(next)
   }
 
@@ -361,5 +412,6 @@ export function usePlanner() {
     acceptSuggestion,
     cloudStatus,
     cloudUserEmail,
+    authStatus,
   }
 }

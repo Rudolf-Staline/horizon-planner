@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AccountDialog } from './components/AccountDialog'
+import { AuthGate } from './components/AuthGate'
 import { CommandPalette } from './components/CommandPalette'
 import { ConflictBar } from './components/ConflictBar'
 import { Header } from './components/Header'
@@ -22,6 +23,8 @@ export default function App() {
   const [accountOpen, setAccountOpen] = useState(false)
 
   useEffect(() => {
+    if (planner.authStatus !== 'authenticated') return
+
     const handle = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return
 
@@ -38,12 +41,18 @@ export default function App() {
     }
     window.addEventListener('keydown', handle)
     return () => window.removeEventListener('keydown', handle)
-  }, [planner.undo, planner.redo])
+  }, [planner.authStatus, planner.undo, planner.redo])
 
   const create = (created: PlannerEvent[]) => {
+    if (planner.authStatus !== 'authenticated') return
+
     planner.createEvents(created)
     planner.setSelectedId(created[0]?.id ?? null)
     setQuick(null)
+  }
+
+  if (planner.authStatus !== 'authenticated') {
+    return <AuthGate status={planner.authStatus}/>
   }
 
   return (
