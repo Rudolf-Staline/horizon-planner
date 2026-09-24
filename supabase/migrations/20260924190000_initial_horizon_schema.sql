@@ -92,11 +92,7 @@ create table if not exists public.routines (
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  check (
-    not exists (
-      select 1 from unnest(days) d where d < 0 or d > 6
-    )
-  )
+  check (days <@ array[0,1,2,3,4,5,6]::smallint[])
 );
 
 create table if not exists public.calendar_events (
