@@ -10,5 +10,16 @@ export const formatTime = (minutes: number) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+export const parseTime = (value: string, fallback: number) => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
+  if (!match) return fallback
+
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (hours > 23 || minutes > 59) return fallback
+
+  return hours * 60 + minutes
+}
+
 export const clampStart = (startMin: number, durationMin: number) =>
   clamp(startMin, START_MIN, END_MIN - durationMin)

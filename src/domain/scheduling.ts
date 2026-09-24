@@ -1,7 +1,10 @@
 import { END_MIN, SNAP_MINUTES, START_MIN } from './constants'
-import type { PlannerEvent } from './types'
+import type { EnergyLevel, Placement, PlannerEvent, Priority } from './types'
 
-export function overlaps(a: Pick<PlannerEvent, 'day' | 'startMin' | 'durationMin'>, b: Pick<PlannerEvent, 'day' | 'startMin' | 'durationMin'>) {
+export function overlaps(
+  a: Pick<PlannerEvent, 'day' | 'startMin' | 'durationMin'>,
+  b: Pick<PlannerEvent, 'day' | 'startMin' | 'durationMin'>,
+) {
   if (a.day !== b.day) return false
   const aEnd = a.startMin + a.durationMin
   const bEnd = b.startMin + b.durationMin
@@ -12,21 +15,159 @@ export function conflictsFor(event: PlannerEvent, events: PlannerEvent[]) {
   return events.filter((other) => other.id !== event.id && overlaps(event, other))
 }
 
-export function findNextAvailableSlot(event: PlannerEvent, events: PlannerEvent[]) {
-  const earliest = event.windowStartMin ?? START_MIN
-  const latestEnd = event.windowEndMin ?? END_MIN
+function energyPenalty(energy: EnergyLevel | undefined, startMin: number) {
+  if (!energy) return 0
+  const hour = startMin / 60
 
-  for (let start = Math.max(event.startMin, earliest); start + event.durationMin <= latestEnd; start += SNAP_MINUTES) {
-    const candidate = { ...event, startMin: start }
-    if (conflictsFor(candidate, events).length === 0) return { day: event.day, startMin: start }
+  const preferred =
+    energy === 'high' ? [8, 12.5] :
+    energy === 'medium' ? [10, 18.5] :
+    [16, 21.5]
+
+  if (hour >= preferred[0] && hour <= preferred[1]) return 0
+
+  const distanceHours = hour < preferred[0] ? preferred[0] - hour : hour - preferred[1]
+  return Math.round(distanceHours * 8)
+}
+
+function priorityUrgency(priority: Priority | undefined) {
+  if (priority === 'high') return 3
+  if (priority === 'medium') return 2
+  return 1
+}
+
+export function scorePlacement(event: PlannerEvent, placement: Pick<Placement, 'day' | 'startMin'>) {
+  const dayDistance = Math.max(0, placement.day - event.day)
+  const timeDistance = Math.abs(placement.startMin - event.startMin) / SNAP_MINUTES
+  const deadline = event.deadlineDay ?? 6
+  const daysLeftAfterPlacement = Math.max(0, deadline - placement.day)
+  const urgency = priorityUrgency(event.priority)
+
+  // Lower is better. Moving to another day is intentionally expensive:
+  // Horizon first tries to preserve the person's mental model of the week.
+  return (
+    dayDistance * 80 +
+    timeDistance * 1.5 +
+    energyPenalty(event.energy, placement.startMin) +
+    daysLeftAfterPlacement * -urgency
+  )
+}
+
+function validDayRange(event: PlannerEvent) {
+  const first = Math.max(0, event.day)
+  const last = Math.min(6, Math.max(first, event.deadlineDay ?? 6))
+  return { first, last }
+}
+
+function dailyBounds(event: PlannerEvent) {
+  return {
+    start: Math.max(START_MIN, event.windowStartMin ?? START_MIN),
+    end: Math.min(END_MIN, event.windowEndMin ?? END_MIN),
   }
+}
 
-  for (let day = event.day + 1; day <= Math.min(event.deadlineDay ?? 6, 6); day++) {
-    for (let start = START_MIN; start + event.durationMin <= END_MIN; start += SNAP_MINUTES) {
-      const candidate = { ...event, day, startMin: start }
-      if (conflictsFor(candidate, events).length === 0) return { day, startMin: start }
+export function findCandidatePlacements(
+  event: PlannerEvent,
+  events: PlannerEvent[],
+  durationMin = event.durationMin,
+): Placement[] {
+  const { first, last } = validDayRange(event)
+  const { start: windowStart, end: windowEnd } = dailyBounds(event)
+  const candidates: Placement[] = []
+
+  for (let day = first; day <= last; day++) {
+    for (let startMin = windowStart; startMin + durationMin <= windowEnd; startMin += SNAP_MINUTES) {
+      const candidate: PlannerEvent = {
+        ...event,
+        day,
+        startMin,
+        durationMin,
+      }
+
+      if (conflictsFor(candidate, events).length > 0) continue
+
+      candidates.push({
+        day,
+        startMin,
+        durationMin,
+        score: scorePlacement(event, { day, startMin }),
+      })
     }
   }
+
+  return candidates.sort((a, b) =>
+    a.score - b.score ||
+    a.day - b.day ||
+    a.startMin - b.startMin
+  )
+}
+
+export function findBestPlacement(event: PlannerEvent, events: PlannerEvent[]) {
+  return findCandidatePlacements(event, events)[0] ?? null
+}
+
+/**
+ * Compatibility helper used by the conflict UI.
+ */
+export function findNextAvailableSlot(event: PlannerEvent, events: PlannerEvent[]) {
+  const placement = findBestPlacement(event, events)
+  return placement ? { day: placement.day, startMin: placement.startMin } : null
+}
+
+export function planSplitTask(event: PlannerEvent, events: PlannerEvent[]): Placement[] | null {
+  if (!event.splittable || event.kind !== 'flexible') return null
+
+  const minChunk = Math.max(SNAP_MINUTES, event.minChunkMin ?? 30)
+  let remaining = event.durationMin
+  const placements: Placement[] = []
+  const blocked = [...events]
+
+  while (remaining > 0) {
+    const targetChunk = Math.min(remaining, 90)
+    let selected: Placement | null = null
+
+    // Try the largest useful chunk first, then shrink by the snap interval.
+    for (
+      let chunk = targetChunk;
+      chunk >= Math.min(minChunk, remaining);
+      chunk -= SNAP_MINUTES
+    ) {
+      const candidate = findCandidatePlacements(event, blocked, chunk)[0]
+      if (candidate) {
+        selected = candidate
+        break
+      }
+    }
+
+    // The final remainder may be smaller than minChunk.
+    if (!selected && remaining < minChunk) {
+      selected = findCandidatePlacements(event, blocked, remaining)[0] ?? null
+    }
+
+    if (!selected) return null
+
+    placements.push(selected)
+    blocked.push({
+      ...event,
+      id: `${event.id}:segment:${placements.length}`,
+      day: selected.day,
+      startMin: selected.startMin,
+      durationMin: selected.durationMin,
+    })
+    remaining -= selected.durationMin
+  }
+
+  return placements
+}
+
+export function planFlexibleTask(event: PlannerEvent, events: PlannerEvent[]) {
+  if (event.kind !== 'flexible') return null
+
+  const whole = findBestPlacement(event, events)
+  if (whole) return { kind: 'single' as const, placements: [whole] }
+
+  const split = planSplitTask(event, events)
+  if (split) return { kind: 'split' as const, placements: split }
 
   return null
 }
