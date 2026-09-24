@@ -54,6 +54,11 @@ describe('constraint placement', () => {
     expect(findBestPlacement(event, blockers)).toBeNull()
   })
 
+  it('never auto-places a fixed event', () => {
+    const event = base({ kind: 'fixed' })
+    expect(findBestPlacement(event, [])).toBeNull()
+  })
+
   it('avoids occupied slots', () => {
     const event = base({ windowStartMin: 9 * 60, windowEndMin: 12 * 60 })
     const blocker = base({ id: 'block', kind: 'fixed', startMin: 9 * 60, durationMin: 60 })

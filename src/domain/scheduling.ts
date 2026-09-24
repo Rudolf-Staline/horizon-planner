@@ -103,6 +103,7 @@ export function findCandidatePlacements(
 }
 
 export function findBestPlacement(event: PlannerEvent, events: PlannerEvent[]) {
+  if (event.kind !== 'flexible') return null
   return findCandidatePlacements(event, events)[0] ?? null
 }
 
