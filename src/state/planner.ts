@@ -267,6 +267,15 @@ export function usePlanner() {
     createEvents([event])
   }
 
+  const toggleCompleted = (id: string) => {
+    const next = events.map((event) =>
+      event.id === id
+        ? { ...event, completed: !event.completed }
+        : event
+    )
+    commit(next)
+  }
+
   const deleteEvent = (id: string) => {
     const target = events.find((event) => event.id === id)
     if (target?.locked) return
@@ -319,6 +328,7 @@ export function usePlanner() {
     updateEvent,
     createEvent,
     createEvents,
+    toggleCompleted,
     deleteEvent,
     undo,
     redo,

@@ -3,9 +3,12 @@ import { AccountDialog } from './components/AccountDialog'
 import { CommandPalette } from './components/CommandPalette'
 import { ConflictBar } from './components/ConflictBar'
 import { Header } from './components/Header'
+import { AnalyticsView } from './components/AnalyticsView'
+import { CollectionView } from './components/CollectionView'
 import { NowView } from './components/NowView'
 import { QuickCreate } from './components/QuickCreate'
-import { Sidebar } from './components/Sidebar'
+import { Sidebar, type Section } from './components/Sidebar'
+import { TasksView } from './components/TasksView'
 import { WeekCalendar } from './components/WeekCalendar'
 import { usePlanner } from './state/planner'
 import type { PlannerEvent } from './domain/types'
@@ -13,6 +16,7 @@ import type { PlannerEvent } from './domain/types'
 export default function App() {
   const planner = usePlanner()
   const [view, setView] = useState<'week' | 'now'>('week')
+  const [section, setSection] = useState<Section>('calendar')
   const [quick, setQuick] = useState<{ day: number; startMin: number } | null>(null)
   const [commandOpen, setCommandOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -45,15 +49,26 @@ export default function App() {
   return (
     <div className="app">
       <Header
-        view={view}
-        onView={setView}
+        view={section === 'focus' ? 'now' : view}
+        onView={(nextView) => {
+          setView(nextView)
+          setSection(nextView === 'now' ? 'focus' : 'calendar')
+        }}
         onCommand={() => setCommandOpen(true)}
         onAccount={() => setAccountOpen(true)}
         cloudStatus={planner.cloudStatus}
       />
       <div className="app-body">
-        <Sidebar />
-        {view === 'week' ? (
+        <Sidebar
+          active={section}
+          onNavigate={(nextSection) => {
+            setSection(nextSection)
+            if (nextSection === 'focus') setView('now')
+            if (nextSection === 'calendar') setView('week')
+          }}
+        />
+
+        {section === 'calendar' && (
           <WeekCalendar
             events={planner.events}
             selectedId={planner.selectedId}
@@ -61,7 +76,40 @@ export default function App() {
             onChange={planner.updateEvent}
             onEmptyClick={(day, startMin) => setQuick({ day, startMin })}
           />
-        ) : <NowView events={planner.events} />}
+        )}
+
+        {section === 'tasks' && (
+          <TasksView
+            events={planner.events}
+            onToggle={planner.toggleCompleted}
+          />
+        )}
+
+        {section === 'projects' && (
+          <CollectionView
+            title="Projets"
+            kicker="CONSTRUCTION"
+            category="project"
+            events={planner.events}
+          />
+        )}
+
+        {section === 'routines' && (
+          <CollectionView
+            title="Routines"
+            kicker="RÉPÉTITION"
+            category="routine"
+            events={planner.events}
+          />
+        )}
+
+        {section === 'focus' && (
+          <NowView events={planner.events}/>
+        )}
+
+        {section === 'analytics' && (
+          <AnalyticsView events={planner.events}/>
+        )}
       </div>
 
       {accountOpen && (
