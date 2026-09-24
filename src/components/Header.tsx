@@ -1,12 +1,21 @@
-import { Bell, Search, Sun } from 'lucide-react'
+import { Bell, Cloud, Search, Sun } from 'lucide-react'
+import type { CloudStatus } from '../state/planner'
 
 interface Props {
   view: 'week' | 'now'
   onView: (v: 'week' | 'now') => void
   onCommand: () => void
+  onAccount: () => void
+  cloudStatus: CloudStatus
 }
 
-export function Header({ view, onView, onCommand }: Props) {
+export function Header({
+  view,
+  onView,
+  onCommand,
+  onAccount,
+  cloudStatus,
+}: Props) {
   return (
     <header className="topbar">
       <div className="top-nav">
@@ -33,12 +42,31 @@ export function Header({ view, onView, onCommand }: Props) {
         <kbd>⌘K</kbd>
       </button>
 
+      <button
+        className={`icon-button sync-indicator sync-${cloudStatus}`}
+        title={
+          cloudStatus === 'synced'
+            ? 'Synchronisé'
+            : cloudStatus === 'syncing'
+              ? 'Synchronisation…'
+              : cloudStatus === 'error'
+                ? 'Erreur de synchronisation'
+                : 'Mode local'
+        }
+        onClick={onAccount}
+      >
+        <Cloud size={19}/>
+        <span className="sync-dot"/>
+      </button>
+
       <button className="icon-button"><Sun size={20}/></button>
+
       <button className="icon-button">
         <Bell size={20}/>
         <span className="notif-dot"/>
       </button>
-      <div className="top-avatar">R</div>
+
+      <button className="top-avatar" onClick={onAccount}>R</button>
     </header>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AccountDialog } from './components/AccountDialog'
 import { CommandPalette } from './components/CommandPalette'
 import { ConflictBar } from './components/ConflictBar'
 import { Header } from './components/Header'
@@ -14,6 +15,7 @@ export default function App() {
   const [view, setView] = useState<'week' | 'now'>('week')
   const [quick, setQuick] = useState<{ day: number; startMin: number } | null>(null)
   const [commandOpen, setCommandOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
 
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
@@ -46,6 +48,8 @@ export default function App() {
         view={view}
         onView={setView}
         onCommand={() => setCommandOpen(true)}
+        onAccount={() => setAccountOpen(true)}
+        cloudStatus={planner.cloudStatus}
       />
       <div className="app-body">
         <Sidebar />
@@ -59,6 +63,14 @@ export default function App() {
           />
         ) : <NowView events={planner.events} />}
       </div>
+
+      {accountOpen && (
+        <AccountDialog
+          cloudStatus={planner.cloudStatus}
+          userEmail={planner.cloudUserEmail}
+          onClose={() => setAccountOpen(false)}
+        />
+      )}
 
       {commandOpen && (
         <CommandPalette
