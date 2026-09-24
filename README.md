@@ -78,3 +78,17 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 4. Mobile day-first interaction model
 5. Calendar accessibility and keyboard interactions
 6. Broader tests for state history and pointer interactions
+
+
+## Supabase
+
+Horizon uses Supabase for authenticated cloud sync while remaining local-first.
+
+The production Vite bundle uses only public browser configuration:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+No service-role key is used or committed.
+
+The schema is versioned in `supabase/migrations/` and Row Level Security is enabled on every user-owned table.
