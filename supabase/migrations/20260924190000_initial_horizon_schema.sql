@@ -31,13 +31,15 @@ create table if not exists public.projects (
   color text,
   archived boolean not null default false,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (id, user_id)
 );
 
 create table if not exists public.tasks (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  project_id uuid references public.projects(id) on delete set null,
+  project_id uuid,
+
   title text not null check (char_length(title) between 1 and 300),
   notes text,
   category text not null default 'neutral'
@@ -52,11 +54,15 @@ create table if not exists public.tasks (
     check (status in ('open','planned','in_progress','completed','cancelled')),
   completed_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (id, user_id),
+  foreign key (project_id, user_id)
+    references public.projects(id, user_id)
+    on delete set null
 );
 
 create table if not exists public.task_constraints (
-  task_id uuid primary key references public.tasks(id) on delete cascade,
+  task_id uuid primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
   earliest_date date,
   deadline_date date,
@@ -76,13 +82,17 @@ create table if not exists public.task_constraints (
     window_start is null
     or window_end is null
     or window_end > window_start
-  )
+  ),
+  foreign key (task_id, user_id)
+    references public.tasks(id, user_id)
+    on delete cascade
 );
 
 create table if not exists public.routines (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  project_id uuid references public.projects(id) on delete set null,
+  project_id uuid,
+
   title text not null check (char_length(title) between 1 and 300),
   category text not null default 'routine'
     check (category in ('course','project','personal','focus','routine','admin','flexible','neutral')),
@@ -92,13 +102,18 @@ create table if not exists public.routines (
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  check (days <@ array[0,1,2,3,4,5,6]::smallint[])
+  check (days <@ array[0,1,2,3,4,5,6]::smallint[]),
+  unique (id, user_id),
+  foreign key (project_id, user_id)
+    references public.projects(id, user_id)
+    on delete set null
 );
 
 create table if not exists public.calendar_events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  project_id uuid references public.projects(id) on delete set null,
+  project_id uuid,
+
   title text not null check (char_length(title) between 1 and 300),
   category text not null default 'neutral'
     check (category in ('course','project','personal','focus','routine','admin','flexible','neutral')),
@@ -110,14 +125,18 @@ create table if not exists public.calendar_events (
   external_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  check (ends_at > starts_at)
+  check (ends_at > starts_at),
+  unique (id, user_id),
+  foreign key (project_id, user_id)
+    references public.projects(id, user_id)
+    on delete set null
 );
 
 create table if not exists public.planned_segments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  task_id uuid references public.tasks(id) on delete cascade,
-  routine_id uuid references public.routines(id) on delete cascade,
+  task_id uuid,
+  routine_id uuid,
   starts_at timestamptz not null,
   ends_at timestamptz not null,
   segment_index integer not null default 0 check (segment_index >= 0),
@@ -126,7 +145,13 @@ create table if not exists public.planned_segments (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (ends_at > starts_at),
-  check ((task_id is not null) <> (routine_id is not null))
+  check ((task_id is not null) <> (routine_id is not null)),
+  foreign key (task_id, user_id)
+    references public.tasks(id, user_id)
+    on delete cascade,
+  foreign key (routine_id, user_id)
+    references public.routines(id, user_id)
+    on delete cascade
 );
 
 -- Transitional local-first bridge. The normalized tables above remain
