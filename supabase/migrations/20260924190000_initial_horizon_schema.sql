@@ -136,6 +136,7 @@ create table if not exists public.planner_snapshots (
   user_id uuid primary key references auth.users(id) on delete cascade,
   schema_version integer not null default 1 check (schema_version > 0),
   payload jsonb not null default '[]'::jsonb,
+  client_updated_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (jsonb_typeof(payload) = 'array')
 );
@@ -182,6 +183,10 @@ for each row execute function public.set_updated_at();
 
 create trigger planned_segments_set_updated_at
 before update on public.planned_segments
+for each row execute function public.set_updated_at();
+
+create trigger planner_snapshots_set_updated_at
+before update on public.planner_snapshots
 for each row execute function public.set_updated_at();
 
 create or replace function public.handle_new_user()
