@@ -32,6 +32,18 @@ describe('parseQuickTask', () => {
     expect(parsed!.locked).toBe(true)
   })
 
+  it('treats "avant vendredi" as a deadline, not the scheduled day', () => {
+    const parsed = parseQuickTask(
+      'Réviser probabilités 1h avant vendredi',
+      2,
+      14 * 60,
+    )
+
+    expect(parsed).not.toBeNull()
+    expect(parsed!.day).toBe(2)
+    expect(parsed!.deadlineDay).toBe(4)
+  })
+
   it('turns evening language into a soft energy/time preference', () => {
     const parsed = parseQuickTask(
       'Lire 30 min dimanche soir',

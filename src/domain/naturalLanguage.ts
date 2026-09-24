@@ -108,20 +108,42 @@ export function parseQuickTask(
 
   const text = fold(original)
 
+  let deadlineDay: number | undefined
+  for (const [name, index] of WEEKDAYS) {
+    if (new RegExp(`\\bavant\\s+${name}\\b`).test(text)) {
+      deadlineDay = index
+      break
+    }
+  }
+
   let day = contextDay
   if (/\bdemain\b/.test(text)) day = Math.min(6, contextDay + 1)
   if (/\baujourd'hui\b|\baujourdhui\b/.test(text)) day = contextDay
 
   for (const [name, index] of WEEKDAYS) {
-    if (new RegExp(`\\b${name}\\b`).test(text)) {
+    const usedAsDeadline = new RegExp(`\\bavant\\s+${name}\\b`).test(text)
+    if (!usedAsDeadline && new RegExp(`\\b${name}\\b`).test(text)) {
       day = index
       break
     }
   }
 
+  // Remove clock constraints before looking for a free-form duration.
+  // Otherwise "à 16h pendant 45 min" would interpret 16h as 16 hours.
+  const durationText = text
+    .replace(/\\b(?:a|apres|avant)\\s*\\d{1,2}\\s*h\\s*\\d{0,2}/g, ' ')
+
   let durationMin = 60
-  const durationHours = text.match(/(\d+)\s*h\s*(\d{1,2})?/)
-  const durationMinutes = text.match(/(\d+)\s*(?:min|minutes?)/)
+  const explicitHours = text.match(
+    /(?:pendant|durant)\\s+(\\d+)\\s*h\\s*(\\d{1,2})?/
+  )
+  const explicitMinutes = text.match(
+    /(?:pendant|durant)\\s+(\\d+)\\s*(?:min|minutes?)/
+  )
+  const durationHours =
+    explicitHours ?? durationText.match(/(\\d+)\\s*h\\s*(\\d{1,2})?/)
+  const durationMinutes =
+    explicitMinutes ?? durationText.match(/(\\d+)\\s*(?:min|minutes?)/)
 
   if (durationHours) {
     durationMin =
@@ -152,14 +174,6 @@ export function parseQuickTask(
 
   if (exact) {
     startMin = clock(exact[1], exact[2])
-  }
-
-  let deadlineDay: number | undefined
-  for (const [name, index] of WEEKDAYS) {
-    if (new RegExp(`\\bavant\\s+${name}\\b`).test(text)) {
-      deadlineDay = index
-      break
-    }
   }
 
   let energy: EnergyLevel | undefined
