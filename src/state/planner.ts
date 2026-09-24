@@ -2,29 +2,197 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
 import { seedEvents } from '../domain/seed'
 import { conflictsFor, findNextAvailableSlot } from '../domain/scheduling'
+import {
+  currentCloudUser,
+  loadCloudSnapshot,
+  saveCloudSnapshot,
+} from '../data/cloudSnapshot'
+import { supabase } from '../lib/supabase'
 
 const STORAGE_KEY = 'horizon-planner-v1'
 
 type Snapshot = PlannerEvent[]
 
-function loadEvents(): PlannerEvent[] {
+type LocalEnvelope = {
+  schemaVersion: 1
+  events: PlannerEvent[]
+  modifiedAt: number
+}
+
+export type CloudStatus = 'local' | 'syncing' | 'synced' | 'error'
+
+function loadLocalSnapshot(): LocalEnvelope {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : seedEvents
+    if (!raw) {
+      return {
+        schemaVersion: 1,
+        events: seedEvents,
+        modifiedAt: 0,
+      }
+    }
+
+    const parsed = JSON.parse(raw)
+
+    // Backward compatibility with the first prototype, which stored the
+    // PlannerEvent[] directly.
+    if (Array.isArray(parsed)) {
+      return {
+        schemaVersion: 1,
+        events: parsed,
+        modifiedAt: 0,
+      }
+    }
+
+    if (
+      parsed &&
+      parsed.schemaVersion === 1 &&
+      Array.isArray(parsed.events) &&
+      typeof parsed.modifiedAt === 'number'
+    ) {
+      return parsed as LocalEnvelope
+    }
   } catch {
-    return seedEvents
+    // Fall through to seed data.
+  }
+
+  return {
+    schemaVersion: 1,
+    events: seedEvents,
+    modifiedAt: 0,
   }
 }
 
+function persistLocal(
+  events: PlannerEvent[],
+  modifiedAt: number,
+) {
+  const envelope: LocalEnvelope = {
+    schemaVersion: 1,
+    events,
+    modifiedAt,
+  }
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(envelope))
+}
+
 export function usePlanner() {
-  const [events, setEvents] = useState<PlannerEvent[]>(loadEvents)
+  const initialRef = useRef<LocalEnvelope | null>(null)
+  if (!initialRef.current) {
+    initialRef.current = loadLocalSnapshot()
+  }
+
+  const [events, setEvents] = useState<PlannerEvent[]>(
+    initialRef.current.events,
+  )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [lastConflictId, setLastConflictId] = useState<string | null>(null)
+  const [cloudStatus, setCloudStatus] = useState<CloudStatus>('local')
+  const [cloudUserEmail, setCloudUserEmail] = useState<string | null>(null)
+
   const undoStack = useRef<Snapshot[]>([])
   const redoStack = useRef<Snapshot[]>([])
+  const modifiedAtRef = useRef(initialRef.current.modifiedAt)
+  const eventsRef = useRef(events)
+  const cloudUserIdRef = useRef<string | null>(null)
+  const skipNextCloudPushRef = useRef(false)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(events))
+    eventsRef.current = events
+    persistLocal(events, modifiedAtRef.current)
+  }, [events])
+
+  useEffect(() => {
+    if (!supabase) {
+      setCloudStatus('local')
+      return
+    }
+
+    let cancelled = false
+
+    const reconcile = async (
+      user: Awaited<ReturnType<typeof currentCloudUser>>,
+    ) => {
+      if (cancelled) return
+
+      if (!user) {
+        cloudUserIdRef.current = null
+        setCloudUserEmail(null)
+        setCloudStatus('local')
+        return
+      }
+
+      cloudUserIdRef.current = user.id
+      setCloudUserEmail(user.email ?? null)
+      setCloudStatus('syncing')
+
+      try {
+        const remote = await loadCloudSnapshot(user.id)
+        if (cancelled) return
+
+        if (
+          remote &&
+          remote.modifiedAt > modifiedAtRef.current
+        ) {
+          modifiedAtRef.current = remote.modifiedAt
+          eventsRef.current = remote.events
+          skipNextCloudPushRef.current = true
+          setEvents(remote.events)
+        } else {
+          await saveCloudSnapshot(
+            user.id,
+            eventsRef.current,
+            modifiedAtRef.current,
+          )
+        }
+
+        if (!cancelled) setCloudStatus('synced')
+      } catch {
+        if (!cancelled) setCloudStatus('error')
+      }
+    }
+
+    currentCloudUser().then(reconcile)
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      queueMicrotask(() => {
+        reconcile(session?.user ?? null)
+      })
+    })
+
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    const userId = cloudUserIdRef.current
+    if (!userId) return
+
+    if (skipNextCloudPushRef.current) {
+      skipNextCloudPushRef.current = false
+      return
+    }
+
+    const timer = window.setTimeout(async () => {
+      setCloudStatus('syncing')
+
+      try {
+        await saveCloudSnapshot(
+          userId,
+          events,
+          modifiedAtRef.current,
+        )
+        setCloudStatus('synced')
+      } catch {
+        setCloudStatus('error')
+      }
+    }, 650)
+
+    return () => window.clearTimeout(timer)
   }, [events])
 
   const selected = useMemo(
@@ -43,17 +211,28 @@ export function usePlanner() {
   )
 
   const suggestion = useMemo(
-    () => conflictEvent ? findNextAvailableSlot(conflictEvent, events) : null,
+    () => conflictEvent
+      ? findNextAvailableSlot(conflictEvent, events)
+      : null,
     [conflictEvent, events],
   )
+
+  const replaceEvents = (next: PlannerEvent[]) => {
+    modifiedAtRef.current = Date.now()
+    eventsRef.current = next
+    setEvents(next)
+  }
 
   const commit = (next: PlannerEvent[]) => {
     undoStack.current.push(events)
     redoStack.current = []
-    setEvents(next)
+    replaceEvents(next)
   }
 
-  const updateEvent = (id: string, patch: Partial<PlannerEvent>) => {
+  const updateEvent = (
+    id: string,
+    patch: Partial<PlannerEvent>,
+  ) => {
     const current = events.find((event) => event.id === id)
     if (!current || current.locked) return
 
@@ -62,52 +241,72 @@ export function usePlanner() {
     )
 
     commit(next)
-    const changed = next.find((e) => e.id === id)
+
+    const changed = next.find((event) => event.id === id)
     setLastConflictId(
-      changed && conflictsFor(changed, next).length ? id : null
+      changed && conflictsFor(changed, next).length
+        ? id
+        : null,
     )
   }
 
   const createEvents = (created: PlannerEvent[]) => {
     if (created.length === 0) return
+
     const next = [...events, ...created]
     commit(next)
 
     const conflicted = created.find(
-      (event) => conflictsFor(event, next).length > 0
+      (event) => conflictsFor(event, next).length > 0,
     )
+
     setLastConflictId(conflicted?.id ?? null)
   }
 
-  const createEvent = (event: PlannerEvent) => createEvents([event])
+  const createEvent = (event: PlannerEvent) => {
+    createEvents([event])
+  }
 
   const deleteEvent = (id: string) => {
     const target = events.find((event) => event.id === id)
     if (target?.locked) return
 
-    commit(events.filter((e) => e.id !== id))
-    setSelectedId((current) => (current === id ? null : current))
-    setLastConflictId((current) => (current === id ? null : current))
+    commit(events.filter((event) => event.id !== id))
+    setSelectedId((current) => (
+      current === id ? null : current
+    ))
+    setLastConflictId((current) => (
+      current === id ? null : current
+    ))
   }
 
   const undo = () => {
     const previous = undoStack.current.pop()
     if (!previous) return
+
     redoStack.current.push(events)
-    setEvents(previous)
+    replaceEvents(previous)
     setLastConflictId(null)
   }
 
   const redo = () => {
     const next = redoStack.current.pop()
     if (!next) return
+
     undoStack.current.push(events)
-    setEvents(next)
+    replaceEvents(next)
     setLastConflictId(null)
   }
 
   const acceptSuggestion = () => {
-    if (!conflictEvent || !suggestion || conflictEvent.locked) return
+    if (
+      !conflictEvent ||
+      !suggestion ||
+      conflictEvent.locked
+    ) {
+      return
+    }
+
     updateEvent(conflictEvent.id, suggestion)
     setLastConflictId(null)
   }
@@ -130,5 +329,7 @@ export function usePlanner() {
     suggestion,
     dismissConflict: () => setLastConflictId(null),
     acceptSuggestion,
+    cloudStatus,
+    cloudUserEmail,
   }
 }
