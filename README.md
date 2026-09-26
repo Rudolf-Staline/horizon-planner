@@ -75,11 +75,10 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Improve mobile day-first interaction and calendar accessibility
-2. Broaden state-history, pointer and integration tests
-3. Improve mobile day-first interaction and calendar accessibility
-4. Add richer task detail/editing and normalized project membership
-5. Broaden state-history, pointer and integration tests
+1. Add richer task constraints and editing in the detail panel
+2. Improve overlap lanes, drag auto-scroll, and pointer interaction tests
+3. Broaden integration coverage for authentication, persistence, and replanning
+4. Retire the legacy snapshot table after a stability window
 
 
 ## Supabase
@@ -161,3 +160,8 @@ Small screens now keep all primary product sections reachable through a persiste
 ### Date-aware natural-language planning
 
 Natural-language commands now resolve tomorrow, named weekdays and weekday deadlines to concrete ISO dates. The scheduling engine can place work across week boundaries when a concrete deadline allows it, instead of clamping every request to the current Monday-Sunday grid.
+
+
+### Date-based Quick Create deadlines
+
+Quick Create now stores a concrete ISO deadline date for flexible work instead of constraining deadlines to the remainder of the current week. The scheduling engine can therefore propose placements across week boundaries consistently with natural-language planning.

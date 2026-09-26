@@ -9,8 +9,11 @@ import type {
   Priority,
 } from '../domain/types'
 import {
-  dateForWeekday,
+  addDays,
   eventDateLabel,
+  fromISODate,
+  toISODate,
+  weekdayIndex,
 } from '../utils/date'
 import { formatTime, parseTime } from '../utils/time'
 
@@ -22,16 +25,6 @@ interface Props {
   onClose: () => void
   onCreate: (events: PlannerEvent[]) => void
 }
-
-const DAY_LABELS = [
-  'Lundi',
-  'Mardi',
-  'Mercredi',
-  'Jeudi',
-  'Vendredi',
-  'Samedi',
-  'Dimanche',
-]
 
 export function QuickCreate({
   date,
@@ -51,8 +44,15 @@ export function QuickCreate({
     useState<Priority>('medium')
   const [energy, setEnergy] =
     useState<EnergyLevel>('medium')
-  const [deadlineDay, setDeadlineDay] =
-    useState(Math.min(6, day + 2))
+  const [deadlineDate, setDeadlineDate] =
+    useState(() =>
+      toISODate(
+        addDays(
+          fromISODate(date),
+          2,
+        ),
+      ),
+    )
   const [windowStart, setWindowStart] =
     useState(
       formatTime(
@@ -81,6 +81,10 @@ export function QuickCreate({
 
   const makeDraft = (): PlannerEvent => {
     const id = crypto.randomUUID()
+    const safeDeadlineDate =
+      deadlineDate < date
+        ? date
+        : deadlineDate
 
     return {
     id,
@@ -96,7 +100,15 @@ export function QuickCreate({
     kind,
     deadlineDay:
       kind === 'flexible'
-        ? deadlineDay
+        ? weekdayIndex(
+            fromISODate(
+              safeDeadlineDate,
+            ),
+          )
+        : undefined,
+    deadlineDate:
+      kind === 'flexible'
+        ? safeDeadlineDate
         : undefined,
     windowStartMin:
       kind === 'flexible'
@@ -164,10 +176,7 @@ export function QuickCreate({
         title: draft.title,
         date:
           placement.date ??
-          dateForWeekday(
-            draft.date!,
-            placement.day,
-          ),
+          draft.date,
         day: placement.day,
         startMin: placement.startMin,
         durationMin: placement.durationMin,
