@@ -52,7 +52,7 @@ npm test
 
 ## Architecture
 
-- `src/domain/` — planner types, seed data, scheduling constraints and scoring
+- `src/domain/` — planner types, scheduling constraints, scoring and pure domain rules
 - `src/state/` — local state, history, conflict state, persistence boundary
 - `src/components/` — UI and interaction components
 - `src/hooks/` — pointer interaction logic
@@ -252,3 +252,8 @@ The analytics screen now measures only the real current Monday-Sunday interval u
 ### Future-safe same-day planning
 
 Same-day natural-language planning now rounds the current clock forward to the next 15-minute slot. A command entered at 12:07 therefore starts from 12:15 rather than silently considering 12:00, preventing new work from being proposed in the past.
+
+
+### Prototype seed removal
+
+The obsolete hard-coded demo schedule has been removed. Horizon no longer carries personal sample events or a May-2024-era seed layer in the runtime repository; planner state now comes from authenticated normalized data, the user-scoped local cache, and explicit user actions.
