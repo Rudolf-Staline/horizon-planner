@@ -237,3 +237,8 @@ CI now launches Horizon in Chromium with Playwright. The browser suite verifies 
 ### Neutral untimed planning
 
 Natural-language tasks without an explicit clock constraint no longer inherit a hidden 15:00 bias. Future-date commands begin from the planner day boundary, while same-day commands can still use the current rounded time as their context. Explicit times and windows continue to override this neutral default.
+
+
+### Real pause semantics in Now mode
+
+The Pause action now controls a real local execution timer instead of only changing button text. Pausing freezes the remaining execution time, resuming continues from that frozen value, and the running session can remain focused after its original calendar window ends. This execution timer never mutates or silently shifts the schedule.

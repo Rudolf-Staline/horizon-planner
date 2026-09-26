@@ -6,6 +6,13 @@ import {
   taskProgress,
 } from '../domain/taskIdentity'
 import {
+  focusSessionRemaining,
+  pauseFocusSession,
+  resumeFocusSession,
+  startFocusSession,
+  type FocusSession,
+} from '../domain/focusSession'
+import {
   formatLongDate,
   toISODate,
 } from '../utils/date'
@@ -23,12 +30,13 @@ export function NowView({
   onCompleteTask,
 }: Props) {
   const [now, setNow] = useState(() => new Date())
-  const [paused, setPaused] = useState(false)
+  const [session, setSession] =
+    useState<FocusSession | null>(null)
 
   useEffect(() => {
     const timer = window.setInterval(
       () => setNow(new Date()),
-      30_000,
+      1_000,
     )
     return () => window.clearInterval(timer)
   }, [])
@@ -52,12 +60,71 @@ export function NowView({
     [events, today],
   )
 
-  const current = todayEvents.find(
-    (event) =>
-      event.startMin <= currentMin &&
-      event.startMin + event.durationMin >
-        currentMin,
-  )
+  const scheduledCurrent =
+    todayEvents.find(
+      (event) =>
+        event.startMin <=
+          currentMin &&
+        event.startMin +
+          event.durationMin >
+          currentMin,
+    )
+
+  const sessionEvent =
+    session
+      ? events.find(
+          (event) =>
+            event.id ===
+              session.eventId &&
+            !event.completed,
+        ) ?? null
+      : null
+
+  useEffect(() => {
+    if (
+      session &&
+      !sessionEvent
+    ) {
+      setSession(null)
+      return
+    }
+
+    if (
+      !session &&
+      scheduledCurrent &&
+      !scheduledCurrent.virtual
+    ) {
+      const nowSeconds =
+        now.getHours() *
+          3600 +
+        now.getMinutes() *
+          60 +
+        now.getSeconds()
+      const endSeconds =
+        (
+          scheduledCurrent.startMin +
+          scheduledCurrent.durationMin
+        ) * 60
+
+      setSession(
+        startFocusSession(
+          scheduledCurrent.id,
+          endSeconds -
+            nowSeconds,
+          now.getTime(),
+        ),
+      )
+    }
+  }, [
+    session,
+    sessionEvent,
+    scheduledCurrent,
+    now,
+  ])
+
+  const current =
+    sessionEvent ??
+    scheduledCurrent
 
   const next =
     current ??
@@ -76,19 +143,30 @@ export function NowView({
     .slice(0, 3)
 
   const remaining =
-    current
-      ? Math.max(
-          0,
-          current.startMin +
-            current.durationMin -
-            currentMin,
+    current &&
+    session &&
+    session.eventId ===
+      current.id
+      ? Math.ceil(
+          focusSessionRemaining(
+            session,
+            now.getTime(),
+          ) / 60,
         )
-      : next
+      : current
         ? Math.max(
             0,
-            next.startMin - currentMin,
+            current.startMin +
+              current.durationMin -
+              currentMin,
           )
-        : 0
+        : next
+          ? Math.max(
+              0,
+              next.startMin -
+                currentMin,
+            )
+          : 0
 
   const taskSegments = useMemo(() => {
     if (
@@ -194,20 +272,46 @@ export function NowView({
 
           <div className="remaining">
             {remaining} min {current
-              ? 'restantes'
+              ? session?.paused &&
+                session.eventId ===
+                  current.id
+                ? 'figées pendant la pause'
+                : 'restantes'
               : 'avant le début'}
           </div>
 
           <div className="focus-actions">
-            {current && (
+            {current &&
+              session &&
+              session.eventId ===
+                current.id && (
               <button
                 onClick={() =>
-                  setPaused((value) => !value)}
+                  setSession(
+                    (value) => {
+                      if (!value) {
+                        return value
+                      }
+
+                      return value.paused
+                        ? resumeFocusSession(
+                            value,
+                            Date.now(),
+                          )
+                        : pauseFocusSession(
+                            value,
+                            Date.now(),
+                          )
+                    },
+                  )
+                }
               >
-                {paused
+                {session.paused
                   ? <Play size={17}/>
                   : <Pause size={17}/>}
-                {paused ? 'Reprendre' : 'Pause'}
+                {session.paused
+                  ? 'Reprendre'
+                  : 'Pause'}
               </button>
             )}
 
