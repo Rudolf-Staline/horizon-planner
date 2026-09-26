@@ -75,7 +75,7 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Improve overlap lanes, drag auto-scroll, and pointer interaction tests
+1. Add drag auto-scroll and broaden pointer interaction tests
 2. Broaden integration coverage for authentication, persistence, and replanning
 3. Retire the legacy snapshot table after a stability window
 
@@ -169,3 +169,8 @@ Quick Create now stores a concrete ISO deadline date for flexible work instead o
 ### Editable task planning constraints
 
 The task detail panel now edits the same constraints consumed by the planner: concrete deadline date, daily time window, energy preference, splittability and minimum chunk size. Task-level constraint changes propagate across all scheduled segments and persist through `task_constraints`.
+
+
+### Calendar overlap lanes
+
+Overlapping events on the same date are assigned deterministic visual lanes. Connected overlap groups share the minimum number of lanes required, while non-overlapping events keep the full day-column width.

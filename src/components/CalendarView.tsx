@@ -6,6 +6,7 @@ import {
   START_MIN,
 } from '../domain/constants'
 import type { PlannerEvent } from '../domain/types'
+import { layoutCalendarLanes } from '../domain/calendarLayout'
 import {
   addDays,
   addMonths,
@@ -144,6 +145,8 @@ export function CalendarView({
           day: visibleDay,
         })),
     )
+    const laneLayout =
+      layoutCalendarLanes(visibleEvents)
 
     return (
       <>
@@ -263,11 +266,20 @@ export function CalendarView({
               </div>
             ))}
 
-            {visibleEvents.map((event) => (
+            {visibleEvents.map((event) => {
+              const lane =
+                laneLayout.get(event.id) ?? {
+                  lane: 0,
+                  laneCount: 1,
+                }
+
+              return (
               <EventCard
                 key={event.id}
                 event={event}
                 columnWidth={columnWidth}
+                laneIndex={lane.lane}
+                laneCount={lane.laneCount}
                 maxDay={dates.length - 1}
                 selected={selectedId === event.id}
                 onSelect={() => onSelect(event.id)}
@@ -289,7 +301,8 @@ export function CalendarView({
                   })
                 }}
               />
-            ))}
+              )
+            })}
 
             <button
               className="floating-add"

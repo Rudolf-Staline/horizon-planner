@@ -7,6 +7,8 @@ import { clamp, formatTime, snapMinutes } from '../utils/time'
 interface Props {
   event: PlannerEvent
   columnWidth: number
+  laneIndex?: number
+  laneCount?: number
   maxDay?: number
   selected: boolean
   onSelect: () => void
@@ -25,6 +27,8 @@ type Gesture = {
 export function EventCard({
   event,
   columnWidth,
+  laneIndex = 0,
+  laneCount = 1,
   maxDay = 6,
   selected,
   onSelect,
@@ -198,7 +202,27 @@ export function EventCard({
 
   const top = (live.startMin - START_MIN) * PX_PER_MIN
   const height = Math.max(live.durationMin * PX_PER_MIN, 34)
-  const left = live.day * columnWidth
+  const usableWidth =
+    Math.max(24, columnWidth - 8)
+  const safeLaneCount =
+    Math.max(1, laneCount)
+  const safeLaneIndex =
+    clamp(
+      laneIndex,
+      0,
+      safeLaneCount - 1,
+    )
+  const laneWidth =
+    usableWidth / safeLaneCount
+  const laneGap =
+    safeLaneCount > 1 ? 4 : 0
+  const left =
+    live.day * columnWidth +
+    safeLaneIndex * laneWidth
+  const width = Math.max(
+    20,
+    laneWidth - laneGap,
+  )
 
   return (
     <article
@@ -228,7 +252,7 @@ export function EventCard({
         top,
         height,
         left,
-        width: columnWidth - 8,
+        width,
       }}
       onPointerDown={(e) => begin('move', e)}
       onPointerMove={move}
