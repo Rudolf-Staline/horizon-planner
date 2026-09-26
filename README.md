@@ -74,8 +74,8 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Complete direct project/routine CRUD on the normalized tables
-2. Persist recurring routine expansion and richer multi-segment task semantics
+1. Persist richer multi-segment task semantics and unscheduled task inbox
+2. Add direct routine editing and exception dates
 3. Improve mobile day-first interaction and calendar accessibility
 4. Add richer task detail/editing and normalized project membership
 5. Broaden state-history, pointer and integration tests
@@ -100,3 +100,8 @@ The schema is versioned in `supabase/migrations/` and Row Level Security is enab
 The planner now mirrors authenticated schedule state into the normalized Supabase domain:
 `tasks`, `task_constraints`, `planned_segments`, and `calendar_events`.
 The legacy `planner_snapshots` row remains temporarily as a rollback/migration bridge.
+
+
+### Projects and routines
+
+Projects and routines are now first-class Supabase entities. Tasks can be assigned to a project, and active routines are expanded into virtual calendar occurrences for the visible date range without duplicating recurring rows.

@@ -132,13 +132,15 @@ export function NowView({
               </button>
             )}
 
-            <button
-              onClick={() =>
-                onComplete(next.id)}
-            >
-              <Square size={16}/>
-              Terminer
-            </button>
+            {!next.virtual && (
+              <button
+                onClick={() =>
+                  onComplete(next.id)}
+              >
+                <Square size={16}/>
+                Terminer
+              </button>
+            )}
           </div>
         </section>
       ) : (

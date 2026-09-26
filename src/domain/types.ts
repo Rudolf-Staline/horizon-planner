@@ -25,6 +25,8 @@ export interface PlannerEvent {
   durationMin: number
   category: Category
   projectId?: string
+  routineId?: string
+  virtual?: boolean
   priority?: Priority
   kind: EventKind
   locked?: boolean
