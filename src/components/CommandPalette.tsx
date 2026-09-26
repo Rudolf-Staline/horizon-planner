@@ -1,40 +1,87 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, Command, Sparkles, X } from 'lucide-react'
-import { DAYS } from '../domain/constants'
 import { parseQuickTask } from '../domain/naturalLanguage'
 import { planFlexibleTask } from '../domain/scheduling'
 import type { PlannerEvent } from '../domain/types'
+import {
+  dateForWeekday,
+  eventDateLabel,
+  fromISODate,
+  toISODate,
+  weekdayIndex,
+} from '../utils/date'
 import { formatTime } from '../utils/time'
 
 interface Props {
   events: PlannerEvent[]
+  contextDate: string
   onClose: () => void
   onCreate: (events: PlannerEvent[]) => void
 }
 
 export function CommandPalette({
   events,
+  contextDate,
   onClose,
   onCreate,
 }: Props) {
   const [value, setValue] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] =
+    useState<string | null>(null)
+
+  const context = fromISODate(contextDate)
+  const now = new Date()
+  const contextStartMin =
+    toISODate(now) === contextDate
+      ? Math.max(
+          7 * 60,
+          Math.min(
+            21 * 60,
+            Math.round(
+              (now.getHours() * 60 +
+                now.getMinutes()) /
+                15,
+            ) * 15,
+          ),
+        )
+      : 15 * 60
 
   const parsed = useMemo(
-    () => parseQuickTask(value, 2, 15 * 60),
-    [value],
+    () =>
+      parseQuickTask(
+        value,
+        weekdayIndex(context),
+        contextStartMin,
+      ),
+    [value, contextDate],
   )
 
-  const plan = useMemo(() => {
-    if (!parsed || parsed.kind !== 'flexible') return null
+  const draftPreview = useMemo(() => {
+    if (!parsed) return null
 
-    const draft: PlannerEvent = {
+    return {
       id: 'preview',
       ...parsed,
+      date: dateForWeekday(
+        contextDate,
+        parsed.day,
+      ),
+    } satisfies PlannerEvent
+  }, [parsed, contextDate])
+
+  const plan = useMemo(() => {
+    if (
+      !draftPreview ||
+      draftPreview.kind !== 'flexible'
+    ) {
+      return null
     }
 
-    return planFlexibleTask(draft, events)
-  }, [parsed, events])
+    return planFlexibleTask(
+      draftPreview,
+      events,
+    )
+  }, [draftPreview, events])
 
   const create = () => {
     if (!parsed) return
@@ -42,6 +89,10 @@ export function CommandPalette({
     const draft: PlannerEvent = {
       id: crypto.randomUUID(),
       ...parsed,
+      date: dateForWeekday(
+        contextDate,
+        parsed.day,
+      ),
     }
 
     if (draft.kind === 'fixed') {
@@ -49,38 +100,64 @@ export function CommandPalette({
       return
     }
 
-    const resolved = planFlexibleTask(draft, events)
+    const resolved =
+      planFlexibleTask(draft, events)
+
     if (!resolved) {
       setError(
-        'Aucun créneau admissible. Reformule avec une fenêtre plus large ou une deadline plus tardive.'
+        'Aucun créneau admissible. Reformule avec une fenêtre plus large ou une deadline plus tardive.',
       )
       return
     }
 
-    const created = resolved.placements.map((placement, index) => ({
-      ...draft,
-      id: crypto.randomUUID(),
-      title: resolved.kind === 'split'
-        ? `${draft.title} · ${index + 1}/${resolved.placements.length}`
-        : draft.title,
-      day: placement.day,
-      startMin: placement.startMin,
-      durationMin: placement.durationMin,
-    }))
+    const created =
+      resolved.placements.map(
+        (placement, index) => ({
+          ...draft,
+          id: crypto.randomUUID(),
+          title:
+            resolved.kind === 'split'
+              ? `${draft.title} · ${index + 1}/${resolved.placements.length}`
+              : draft.title,
+          date:
+            placement.date ??
+            dateForWeekday(
+              draft.date!,
+              placement.day,
+            ),
+          day: placement.day,
+          startMin: placement.startMin,
+          durationMin:
+            placement.durationMin,
+        }),
+      )
 
     onCreate(created)
   }
 
   const previewPlacement =
     parsed?.kind === 'fixed'
-      ? parsed
+      ? draftPreview
       : plan?.placements[0]
 
+  const previewDate =
+    previewPlacement?.date ??
+    (previewPlacement
+      ? dateForWeekday(
+          contextDate,
+          previewPlacement.day,
+        )
+      : null)
+
   return (
-    <div className="command-overlay" onMouseDown={onClose}>
+    <div
+      className="command-overlay"
+      onMouseDown={onClose}
+    >
       <section
         className="command-palette"
-        onMouseDown={(event) => event.stopPropagation()}
+        onMouseDown={(event) =>
+          event.stopPropagation()}
       >
         <div className="command-input-row">
           <Command size={20}/>
@@ -98,7 +175,9 @@ export function CommandPalette({
             placeholder="Ex. demain réviser EDP 1h30 après 14h"
           />
           <kbd>↵</kbd>
-          <button onClick={onClose}><X size={17}/></button>
+          <button onClick={onClose}>
+            <X size={17}/>
+          </button>
         </div>
 
         {!parsed ? (
@@ -109,14 +188,21 @@ export function CommandPalette({
           <div className="command-preview">
             <div className="command-preview-main">
               <span className="command-kicker">
-                {parsed.kind === 'fixed' ? 'ÉVÉNEMENT FIXE' : 'TÂCHE FLEXIBLE'}
+                {parsed.kind === 'fixed'
+                  ? 'ÉVÉNEMENT FIXE'
+                  : 'TÂCHE FLEXIBLE'}
               </span>
               <strong>{parsed.title}</strong>
               <span>
-                {Math.floor(parsed.durationMin / 60) > 0
-                  ? `${Math.floor(parsed.durationMin / 60)} h `
+                {Math.floor(
+                  parsed.durationMin / 60,
+                ) > 0
+                  ? `${Math.floor(
+                      parsed.durationMin / 60,
+                    )} h `
                   : ''}
-                {parsed.durationMin % 60 || parsed.durationMin < 60
+                {parsed.durationMin % 60 ||
+                parsed.durationMin < 60
                   ? `${parsed.durationMin % 60 || parsed.durationMin} min`
                   : ''}
               </span>
@@ -126,7 +212,21 @@ export function CommandPalette({
               <div className="command-placement">
                 <span>Proposition</span>
                 <strong>
-                  {DAYS[previewPlacement.day]} · {formatTime(previewPlacement.startMin)}
+                  {eventDateLabel({
+                    id: 'preview',
+                    title: parsed.title,
+                    date: previewDate ?? undefined,
+                    day: previewPlacement.day,
+                    startMin:
+                      previewPlacement.startMin,
+                    durationMin:
+                      parsed.durationMin,
+                    category:
+                      parsed.category,
+                    kind: parsed.kind,
+                  })} · {formatTime(
+                    previewPlacement.startMin,
+                  )}
                 </strong>
               </div>
             ) : (
@@ -138,12 +238,16 @@ export function CommandPalette({
           </div>
         )}
 
-        {error && <p className="planning-error">{error}</p>}
+        {error && (
+          <p className="planning-error">
+            {error}
+          </p>
+        )}
 
         <div className="command-footer">
           <span>
             <Sparkles size={14}/>
-            Déterministe pour l’instant — aucune donnée envoyée à un modèle.
+            Planification locale et déterministe.
           </span>
 
           <button

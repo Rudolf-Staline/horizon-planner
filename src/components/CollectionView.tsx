@@ -1,5 +1,6 @@
-import { CATEGORY_LABEL, DAYS } from '../domain/constants'
+import { CATEGORY_LABEL } from '../domain/constants'
 import type { Category, PlannerEvent } from '../domain/types'
+import { eventDateLabel } from '../utils/date'
 import { formatTime } from '../utils/time'
 
 interface Props {
@@ -17,7 +18,7 @@ export function CollectionView({
 }: Props) {
   const items = events
     .filter((event) => event.category === category)
-    .sort((a, b) => a.day - b.day || a.startMin - b.startMin)
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startMin - b.startMin)
 
   return (
     <main className="collection-page">
@@ -26,8 +27,7 @@ export function CollectionView({
           <span className="section-kicker">{kicker}</span>
           <h1>{title}</h1>
           <p>
-            Vue issue du modèle calendrier actuel. Le modèle normalisé Supabase
-            prendra ensuite le relais.
+            Éléments planifiés dans cette catégorie.
           </p>
         </div>
       </header>
@@ -45,7 +45,7 @@ export function CollectionView({
             <span>{CATEGORY_LABEL[category]}</span>
             <strong>{event.title}</strong>
             <small>
-              {DAYS[event.day]} · {formatTime(event.startMin)} · {event.durationMin} min
+              {eventDateLabel(event)} · {formatTime(event.startMin)} · {event.durationMin} min
             </small>
           </article>
         ))}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Sparkles, X } from 'lucide-react'
-import { DAYS, END_MIN, START_MIN } from '../domain/constants'
+import { END_MIN, START_MIN } from '../domain/constants'
 import { planFlexibleTask } from '../domain/scheduling'
 import type {
   Category,
@@ -8,9 +8,14 @@ import type {
   PlannerEvent,
   Priority,
 } from '../domain/types'
+import {
+  dateForWeekday,
+  eventDateLabel,
+} from '../utils/date'
 import { formatTime, parseTime } from '../utils/time'
 
 interface Props {
+  date: string
   day: number
   startMin: number
   events: PlannerEvent[]
@@ -18,7 +23,18 @@ interface Props {
   onCreate: (events: PlannerEvent[]) => void
 }
 
+const DAY_LABELS = [
+  'Lundi',
+  'Mardi',
+  'Mercredi',
+  'Jeudi',
+  'Vendredi',
+  'Samedi',
+  'Dimanche',
+]
+
 export function QuickCreate({
+  date,
   day,
   startMin,
   events,
@@ -27,17 +43,36 @@ export function QuickCreate({
 }: Props) {
   const [title, setTitle] = useState('')
   const [duration, setDuration] = useState(60)
-  const [category, setCategory] = useState<Category>('course')
-  const [kind, setKind] = useState<'fixed' | 'flexible'>('flexible')
-  const [priority, setPriority] = useState<Priority>('medium')
-  const [energy, setEnergy] = useState<EnergyLevel>('medium')
-  const [deadlineDay, setDeadlineDay] = useState(Math.min(6, day + 2))
-  const [windowStart, setWindowStart] = useState(formatTime(Math.max(START_MIN, startMin - 60)))
-  const [windowEnd, setWindowEnd] = useState(formatTime(Math.min(END_MIN, startMin + 180)))
-  const [splittable, setSplittable] = useState(false)
-  const [minChunkMin, setMinChunkMin] = useState(45)
-  const [advanced, setAdvanced] = useState(false)
-  const [planningError, setPlanningError] = useState<string | null>(null)
+  const [category, setCategory] =
+    useState<Category>('course')
+  const [kind, setKind] =
+    useState<'fixed' | 'flexible'>('flexible')
+  const [priority, setPriority] =
+    useState<Priority>('medium')
+  const [energy, setEnergy] =
+    useState<EnergyLevel>('medium')
+  const [deadlineDay, setDeadlineDay] =
+    useState(Math.min(6, day + 2))
+  const [windowStart, setWindowStart] =
+    useState(
+      formatTime(
+        Math.max(START_MIN, startMin - 60),
+      ),
+    )
+  const [windowEnd, setWindowEnd] =
+    useState(
+      formatTime(
+        Math.min(END_MIN, startMin + 180),
+      ),
+    )
+  const [splittable, setSplittable] =
+    useState(false)
+  const [minChunkMin, setMinChunkMin] =
+    useState(45)
+  const [advanced, setAdvanced] =
+    useState(false)
+  const [planningError, setPlanningError] =
+    useState<string | null>(null)
 
   const canCreate = useMemo(
     () => title.trim().length > 1,
@@ -47,24 +82,37 @@ export function QuickCreate({
   const makeDraft = (): PlannerEvent => ({
     id: crypto.randomUUID(),
     title: title.trim(),
+    date,
     day,
     startMin,
     durationMin: duration,
     category,
     priority,
     kind,
-    deadlineDay: kind === 'flexible' ? deadlineDay : undefined,
-    windowStartMin: kind === 'flexible'
-      ? parseTime(windowStart, START_MIN)
-      : undefined,
-    windowEndMin: kind === 'flexible'
-      ? parseTime(windowEnd, END_MIN)
-      : undefined,
-    energy: kind === 'flexible' ? energy : undefined,
-    splittable: kind === 'flexible' ? splittable : undefined,
-    minChunkMin: kind === 'flexible' && splittable
-      ? minChunkMin
-      : undefined,
+    deadlineDay:
+      kind === 'flexible'
+        ? deadlineDay
+        : undefined,
+    windowStartMin:
+      kind === 'flexible'
+        ? parseTime(windowStart, START_MIN)
+        : undefined,
+    windowEndMin:
+      kind === 'flexible'
+        ? parseTime(windowEnd, END_MIN)
+        : undefined,
+    energy:
+      kind === 'flexible'
+        ? energy
+        : undefined,
+    splittable:
+      kind === 'flexible'
+        ? splittable
+        : undefined,
+    minChunkMin:
+      kind === 'flexible' && splittable
+        ? minChunkMin
+        : undefined,
   })
 
   const createHere = () => {
@@ -77,51 +125,72 @@ export function QuickCreate({
     if (!canCreate) return
 
     const draft = makeDraft()
+
     if (draft.kind !== 'flexible') {
       onCreate([draft])
       return
     }
 
-    const plan = planFlexibleTask(draft, events)
+    const plan = planFlexibleTask(
+      draft,
+      events,
+    )
+
     if (!plan) {
       setPlanningError(
-        'Aucun créneau admissible. Élargis la fenêtre, repousse la deadline ou autorise le fractionnement.'
+        'Aucun créneau admissible. Élargis la fenêtre, repousse la deadline ou autorise le fractionnement.',
       )
       return
     }
 
-    if (plan.kind === 'single') {
-      const placement = plan.placements[0]
-      onCreate([{
+    const created = plan.placements.map(
+      (placement, index) => ({
         ...draft,
+        id: crypto.randomUUID(),
+        title:
+          plan.kind === 'split'
+            ? `${draft.title} · ${index + 1}/${plan.placements.length}`
+            : draft.title,
+        date:
+          placement.date ??
+          dateForWeekday(
+            draft.date!,
+            placement.day,
+          ),
         day: placement.day,
         startMin: placement.startMin,
         durationMin: placement.durationMin,
-      }])
-      return
-    }
-
-    const created = plan.placements.map((placement, index) => ({
-      ...draft,
-      id: crypto.randomUUID(),
-      title: `${draft.title} · ${index + 1}/${plan.placements.length}`,
-      day: placement.day,
-      startMin: placement.startMin,
-      durationMin: placement.durationMin,
-    }))
+      }),
+    )
 
     onCreate(created)
   }
 
   return (
-    <div className="quick-overlay" onMouseDown={onClose}>
-      <section className="quick-panel" onMouseDown={(e) => e.stopPropagation()}>
+    <div
+      className="quick-overlay"
+      onMouseDown={onClose}
+    >
+      <section
+        className="quick-panel"
+        onMouseDown={(event) =>
+          event.stopPropagation()
+        }
+      >
         <div className="panel-head">
           <div>
             <h2>Nouvelle tâche</h2>
-            <p>Créer d’abord. Affiner seulement si nécessaire.</p>
+            <p>
+              {eventDateLabel({
+                ...makeDraft(),
+                title: title || 'Nouvelle tâche',
+              })} · {formatTime(startMin)}
+            </p>
           </div>
-          <button className="icon-button" onClick={onClose}>
+          <button
+            className="icon-button"
+            onClick={onClose}
+          >
             <X size={19}/>
           </button>
         </div>
@@ -131,9 +200,16 @@ export function QuickCreate({
           className="field"
           placeholder="Nom de la tâche"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) createHere()
+          onChange={(event) =>
+            setTitle(event.target.value)}
+          onKeyDown={(event) => {
+            if (
+              event.key === 'Enter' &&
+              !event.metaKey &&
+              !event.ctrlKey
+            ) {
+              createHere()
+            }
           }}
         />
 
@@ -142,7 +218,10 @@ export function QuickCreate({
             <span>Durée</span>
             <select
               value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
+              onChange={(event) =>
+                setDuration(
+                  Number(event.target.value),
+                )}
             >
               <option value={30}>30 min</option>
               <option value={45}>45 min</option>
@@ -157,10 +236,18 @@ export function QuickCreate({
             <span>Type</span>
             <select
               value={kind}
-              onChange={(e) => setKind(e.target.value as 'fixed' | 'flexible')}
+              onChange={(event) =>
+                setKind(
+                  event.target.value as
+                    'fixed' | 'flexible',
+                )}
             >
-              <option value="flexible">Flexible</option>
-              <option value="fixed">Fixe</option>
+              <option value="flexible">
+                Flexible
+              </option>
+              <option value="fixed">
+                Fixe
+              </option>
             </select>
           </label>
 
@@ -168,7 +255,10 @@ export function QuickCreate({
             <span>Catégorie</span>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as Category)}
+              onChange={(event) =>
+                setCategory(
+                  event.target.value as Category,
+                )}
             >
               <option value="course">Cours</option>
               <option value="project">Projet</option>
@@ -183,7 +273,10 @@ export function QuickCreate({
             <span>Priorité</span>
             <select
               value={priority}
-              onChange={(e) => setPriority(e.target.value as Priority)}
+              onChange={(event) =>
+                setPriority(
+                  event.target.value as Priority,
+                )}
             >
               <option value="low">Basse</option>
               <option value="medium">Moyenne</option>
@@ -196,7 +289,8 @@ export function QuickCreate({
           <>
             <button
               className="advanced-link"
-              onClick={() => setAdvanced((value) => !value)}
+              onClick={() =>
+                setAdvanced((value) => !value)}
             >
               Options avancées {advanced ? '↑' : '↓'}
             </button>
@@ -207,11 +301,21 @@ export function QuickCreate({
                   <span>Deadline</span>
                   <select
                     value={deadlineDay}
-                    onChange={(e) => setDeadlineDay(Number(e.target.value))}
+                    onChange={(event) =>
+                      setDeadlineDay(
+                        Number(event.target.value),
+                      )}
                   >
-                    {DAYS.slice(day).map((label, index) => (
-                      <option key={label} value={day + index}>{label}</option>
-                    ))}
+                    {DAY_LABELS.slice(day).map(
+                      (label, index) => (
+                        <option
+                          key={label}
+                          value={day + index}
+                        >
+                          {label}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </label>
 
@@ -219,7 +323,10 @@ export function QuickCreate({
                   <span>Énergie</span>
                   <select
                     value={energy}
-                    onChange={(e) => setEnergy(e.target.value as EnergyLevel)}
+                    onChange={(event) =>
+                      setEnergy(
+                        event.target.value as EnergyLevel,
+                      )}
                   >
                     <option value="low">Faible</option>
                     <option value="medium">Moyenne</option>
@@ -233,7 +340,8 @@ export function QuickCreate({
                     type="time"
                     step={900}
                     value={windowStart}
-                    onChange={(e) => setWindowStart(e.target.value)}
+                    onChange={(event) =>
+                      setWindowStart(event.target.value)}
                   />
                 </label>
 
@@ -243,7 +351,8 @@ export function QuickCreate({
                     type="time"
                     step={900}
                     value={windowEnd}
-                    onChange={(e) => setWindowEnd(e.target.value)}
+                    onChange={(event) =>
+                      setWindowEnd(event.target.value)}
                   />
                 </label>
 
@@ -251,7 +360,8 @@ export function QuickCreate({
                   <input
                     type="checkbox"
                     checked={splittable}
-                    onChange={(e) => setSplittable(e.target.checked)}
+                    onChange={(event) =>
+                      setSplittable(event.target.checked)}
                   />
                   <span>Fractionnable</span>
                 </label>
@@ -261,11 +371,14 @@ export function QuickCreate({
                     <span>Bloc minimum</span>
                     <select
                       value={minChunkMin}
-                      onChange={(e) => setMinChunkMin(Number(e.target.value))}
+                      onChange={(event) =>
+                        setMinChunkMin(
+                          Number(event.target.value),
+                        )}
                     >
                       <option value={30}>30 min</option>
                       <option value={45}>45 min</option>
-                      <option value={60}>1 h</option>
+                      <option value={60}>60 min</option>
                     </select>
                   </label>
                 )}
@@ -275,31 +388,28 @@ export function QuickCreate({
         )}
 
         {planningError && (
-          <p className="planning-error">{planningError}</p>
+          <p className="planning-error">
+            {planningError}
+          </p>
         )}
 
         <div className="panel-actions">
-          <button className="btn secondary" onClick={onClose}>
-            Annuler
+          <button
+            className="btn secondary"
+            onClick={createHere}
+            disabled={!canCreate}
+          >
+            Créer ici
           </button>
-
-          {kind === 'flexible' && (
-            <button
-              className="btn secondary"
-              disabled={!canCreate}
-              onClick={createHere}
-            >
-              Créer ici
-            </button>
-          )}
-
           <button
             className="btn primary smart-button"
+            onClick={smartCreate}
             disabled={!canCreate}
-            onClick={kind === 'flexible' ? smartCreate : createHere}
           >
-            {kind === 'flexible' && <Sparkles size={16}/>}
-            {kind === 'flexible' ? 'Planifier' : 'Créer'}
+            <Sparkles size={15}/>
+            {kind === 'flexible'
+              ? 'Planifier'
+              : 'Créer'}
           </button>
         </div>
       </section>

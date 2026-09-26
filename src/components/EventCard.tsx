@@ -7,6 +7,7 @@ import { clamp, formatTime, snapMinutes } from '../utils/time'
 interface Props {
   event: PlannerEvent
   columnWidth: number
+  maxDay?: number
   selected: boolean
   onSelect: () => void
   onChange: (patch: Partial<PlannerEvent>) => void
@@ -24,22 +25,30 @@ type Gesture = {
 export function EventCard({
   event,
   columnWidth,
+  maxDay = 6,
   selected,
   onSelect,
   onChange,
 }: Props) {
-  const [preview, setPreview] = useState<Partial<PlannerEvent> | null>(null)
+  const [preview, setPreview] =
+    useState<Partial<PlannerEvent> | null>(null)
   const [dragging, setDragging] = useState(false)
   const gesture = useRef<Gesture | null>(null)
   const live = { ...event, ...(preview ?? {}) }
 
-  const begin = (mode: Gesture['mode'], e: PointerEvent) => {
+  const begin = (
+    mode: Gesture['mode'],
+    e: PointerEvent,
+  ) => {
     e.stopPropagation()
     onSelect()
 
     if (event.locked) return
 
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    ;(e.currentTarget as HTMLElement).setPointerCapture(
+      e.pointerId,
+    )
+
     gesture.current = {
       mode,
       startX: e.clientX,
@@ -72,7 +81,7 @@ export function EventCard({
     const day = clamp(
       g.originalDay + Math.round(dx / columnWidth),
       0,
-      6,
+      maxDay,
     )
 
     const startMin = clamp(
@@ -88,7 +97,9 @@ export function EventCard({
     if (!gesture.current) return
 
     try {
-      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(
+        e.pointerId,
+      )
     } catch {}
 
     if (preview) onChange(preview)
@@ -125,7 +136,9 @@ export function EventCard({
       }}
     >
       {dragging && (
-        <div className="time-bubble">{formatTime(live.startMin)}</div>
+        <div className="time-bubble">
+          {formatTime(live.startMin)}
+        </div>
       )}
 
       {event.locked
@@ -136,7 +149,7 @@ export function EventCard({
       <div className="event-title">{live.title}</div>
 
       {live.kind === 'flexible' && (
-        <span className="flex-dot" title="Tâche flexible" />
+        <span className="flex-dot" title="Tâche flexible"/>
       )}
 
       {!event.locked && (

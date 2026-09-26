@@ -1,9 +1,11 @@
 # Horizon Planner
 
-Interactive prototype of **Horizon**, a personal planning app focused on fast manipulation, visual clarity, and contextual replanning.
+**Horizon** is a personal planning application focused on fast manipulation, visual clarity, authenticated multi-user data, and contextual replanning.
 
 ## Current prototype
 
+- Real-date calendar with Day / Week / Month / Year navigation
+- Current-time **Maintenant** execution mode
 - Week calendar with opaque saturated event cards
 - No times rendered inside calendar cards
 - Pointer drag & drop across days and time slots
@@ -21,8 +23,8 @@ Interactive prototype of **Horizon**, a personal planning app focused on fast ma
 - Non-blocking conflict bar
 - Suggested free slot for flexible tasks
 - Undo / redo (`Cmd/Ctrl+Z`, `Cmd/Ctrl+Shift+Z`)
-- Local persistence via `localStorage`
-- **Maintenant** execution view
+- Account-scoped local persistence + Supabase cloud sync
+- Password authentication and admin console
 - Responsive mobile fallback
 - `prefers-reduced-motion` support
 - Vitest coverage for scheduling invariants
@@ -70,14 +72,13 @@ Automatic planning never mutates an existing user schedule silently. It returns 
 
 See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
-## Next production steps
+## Remaining product work
 
-1. Natural-language task parser
-2. Persistent projects/tasks/routines domain model
-3. Supabase schema, auth, and sync
-4. Mobile day-first interaction model
-5. Calendar accessibility and keyboard interactions
-6. Broader tests for state history and pointer interactions
+1. Move task/project/routine CRUD from the transitional snapshot into the normalized Supabase tables
+2. Persist recurring routine expansion and multi-week flexible planning
+3. Improve mobile day-first interaction and calendar accessibility
+4. Add richer task detail/editing and normalized project membership
+5. Broaden state-history, pointer and integration tests
 
 
 ## Supabase

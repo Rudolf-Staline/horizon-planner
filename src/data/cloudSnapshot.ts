@@ -23,6 +23,7 @@ function isPlannerEvent(value: unknown): value is PlannerEvent {
   return (
     typeof event.id === 'string' &&
     typeof event.title === 'string' &&
+    (event.date === undefined || typeof event.date === 'string') &&
     typeof event.day === 'number' &&
     event.day >= 0 &&
     event.day <= 6 &&

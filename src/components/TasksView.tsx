@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Check, Circle, Filter, Search } from 'lucide-react'
-import { DAYS, CATEGORY_LABEL } from '../domain/constants'
+import { CATEGORY_LABEL } from '../domain/constants'
 import type { PlannerEvent } from '../domain/types'
+import { eventDateLabel } from '../utils/date'
 import { formatTime } from '../utils/time'
 
 type FilterMode = 'open' | 'all' | 'completed'
@@ -31,7 +32,7 @@ export function TasksView({ events, onToggle }: Props) {
         return true
       })
       .sort((a, b) =>
-        a.day - b.day ||
+        (a.date ?? '').localeCompare(b.date ?? '') ||
         a.startMin - b.startMin ||
         a.title.localeCompare(b.title)
       )
@@ -105,7 +106,7 @@ export function TasksView({ events, onToggle }: Props) {
             <div className="task-main">
               <strong>{event.title}</strong>
               <span>
-                {DAYS[event.day]} · {formatTime(event.startMin)} · {event.durationMin} min
+                {eventDateLabel(event)} · {formatTime(event.startMin)} · {event.durationMin} min
               </span>
             </div>
 

@@ -12,6 +12,7 @@ import {
   type UserRole,
 } from '../data/profile'
 import { supabase } from '../lib/supabase'
+import { migrateLegacyEventDates } from '../utils/date'
 
 const LEGACY_STORAGE_KEY = 'horizon-planner-v1'
 const STORAGE_PREFIX = 'horizon-planner-v2'
@@ -218,6 +219,13 @@ export function usePlanner() {
           shouldPush = true
         } else {
           nextEvents = []
+          nextModifiedAt = Date.now()
+          shouldPush = true
+        }
+
+        const migration = migrateLegacyEventDates(nextEvents)
+        if (migration.changed) {
+          nextEvents = migration.events
           nextModifiedAt = Date.now()
           shouldPush = true
         }

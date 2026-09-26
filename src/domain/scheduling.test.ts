@@ -19,8 +19,9 @@ const base = (patch: Partial<PlannerEvent> = {}): PlannerEvent => ({
 })
 
 describe('scheduling primitives', () => {
-  it('detects overlaps only on the same day', () => {
-    expect(overlaps(base(), base({ id: 'b', startMin: 9 * 60 + 30 }))).toBe(true)
+  it('detects overlaps only on the same concrete date', () => {
+    expect(overlaps(base({ date: '2026-09-21' }), base({ id: 'b', date: '2026-09-21', startMin: 9 * 60 + 30 }))).toBe(true)
+    expect(overlaps(base({ date: '2026-09-21' }), base({ id: 'b', date: '2026-09-28', day: 0 }))).toBe(false)
     expect(overlaps(base(), base({ id: 'b', day: 1 }))).toBe(false)
     expect(overlaps(base(), base({ id: 'b', startMin: 10 * 60 }))).toBe(false)
   })
