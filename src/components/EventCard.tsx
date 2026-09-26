@@ -148,6 +148,15 @@ export function EventCard({
 
       <div className="event-title">{live.title}</div>
 
+      {(live.segmentCount ?? 1) > 1 && (
+        <span
+          className="segment-badge"
+          title="Segment d’une tâche fractionnée"
+        >
+          {(live.segmentIndex ?? 0) + 1}/{live.segmentCount}
+        </span>
+      )}
+
       {live.kind === 'flexible' && (
         <span className="flex-dot" title="Tâche flexible"/>
       )}

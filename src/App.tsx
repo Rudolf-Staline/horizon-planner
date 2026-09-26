@@ -305,7 +305,7 @@ export default function App() {
             <TasksView
               userId={planner.cloudUserId}
               events={planner.events}
-              onToggle={planner.toggleCompleted}
+              onToggleTask={planner.toggleTaskCompleted}
               onSelect={planner.setSelectedId}
               onCreateScheduled={(event) => {
                 planner.createEvent(event)
@@ -410,11 +410,14 @@ export default function App() {
       {planner.selected && (
         <TaskDetailPanel
           event={planner.selected}
+          segments={planner.selectedTaskSegments}
           userId={planner.cloudUserId!}
           onClose={() => planner.setSelectedId(null)}
           onChange={planner.editEvent}
-          onDelete={planner.deleteEvent}
-          onToggleCompleted={planner.toggleCompleted}
+          onDeleteSegment={planner.deleteEvent}
+          onDeleteTask={planner.deleteTask}
+          onToggleSegment={planner.toggleCompleted}
+          onToggleTask={planner.toggleTaskCompleted}
         />
       )}
 
