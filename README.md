@@ -75,8 +75,8 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Broaden pointer interaction and integration tests
-2. Broaden integration coverage for authentication, persistence, and replanning
+1. Add browser-level interaction coverage for calendar and authentication flows
+2. Broaden cloud persistence/reconciliation integration tests
 3. Retire the legacy snapshot table after a stability window
 
 
@@ -204,3 +204,8 @@ Conflict suggestions now distinguish movable flexible work from fixed commitment
 ### Task-aware Now mode
 
 Now mode understands multi-segment tasks. It shows the active block position, task-level completion percentage and completed/total duration, while keeping separate actions for finishing the current block or the entire logical task.
+
+
+### Tested calendar gestures
+
+Pointer move and resize geometry is now a pure tested utility. Coverage includes 15-minute snapping, day-column movement, accumulated vertical and horizontal scroll, calendar-bound clamping, minimum resize duration and the 22:00 end boundary. The React event card delegates gesture math to this shared contract.

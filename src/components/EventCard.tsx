@@ -1,9 +1,21 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { GripHorizontal, Lock, Move } from 'lucide-react'
-import { PX_PER_MIN, SNAP_MINUTES, START_MIN } from '../domain/constants'
+import {
+  END_MIN,
+  PX_PER_MIN,
+  SNAP_MINUTES,
+  START_MIN,
+} from '../domain/constants'
 import type { PlannerEvent } from '../domain/types'
-import { clamp, formatTime, snapMinutes } from '../utils/time'
-import { edgeScrollDelta } from '../utils/pointer'
+import {
+  clamp,
+  formatTime,
+} from '../utils/time'
+import {
+  calendarGesturePatch,
+  edgeScrollDelta,
+  type CalendarGestureOrigin,
+} from '../utils/pointer'
 
 interface Props {
   event: PlannerEvent
@@ -16,16 +28,7 @@ interface Props {
   onChange: (patch: Partial<PlannerEvent>) => void
 }
 
-type Gesture = {
-  mode: 'move' | 'resize'
-  startX: number
-  startY: number
-  originalDay: number
-  originalStart: number
-  originalDuration: number
-  originalScrollTop: number
-  originalScrollLeft: number
-}
+type Gesture = CalendarGestureOrigin
 
 export function EventCard({
   event,
@@ -117,49 +120,23 @@ export function EventCard({
       }
     }
 
-    const scrollDy =
-      (scrollContainer?.scrollTop ?? 0) -
-      g.originalScrollTop
-    const scrollDx =
-      (scrollContainer?.scrollLeft ?? 0) -
-      g.originalScrollLeft
-
-    const dy =
-      e.clientY -
-      g.startY +
-      scrollDy
-    const dx =
-      e.clientX -
-      g.startX +
-      scrollDx
-    const deltaMin =
-      snapMinutes(
-        dy / PX_PER_MIN,
-      )
-
-    if (g.mode === 'resize') {
-      const durationMin = clamp(
-        g.originalDuration + deltaMin,
-        SNAP_MINUTES,
-        22 * 60 - g.originalStart,
-      )
-      setPreview({ durationMin })
-      return
-    }
-
-    const day = clamp(
-      g.originalDay + Math.round(dx / columnWidth),
-      0,
-      maxDay,
+    setPreview(
+      calendarGesturePatch(
+        g,
+        {
+          clientX: e.clientX,
+          clientY: e.clientY,
+          scrollTop:
+            scrollContainer?.scrollTop ??
+            0,
+          scrollLeft:
+            scrollContainer?.scrollLeft ??
+            0,
+        },
+        columnWidth,
+        maxDay,
+      ),
     )
-
-    const startMin = clamp(
-      snapMinutes(g.originalStart + deltaMin),
-      START_MIN,
-      22 * 60 - event.durationMin,
-    )
-
-    setPreview({ day, startMin })
   }
 
   const keyboard = (
@@ -212,7 +189,7 @@ export function EventCard({
           event.durationMin +
             direction * SNAP_MINUTES,
           SNAP_MINUTES,
-          22 * 60 - event.startMin,
+          END_MIN - event.startMin,
         ),
       })
       return
@@ -245,7 +222,7 @@ export function EventCard({
         event.startMin +
           direction * SNAP_MINUTES,
         START_MIN,
-        22 * 60 - event.durationMin,
+        END_MIN - event.durationMin,
       ),
     })
   }
