@@ -76,7 +76,7 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 ## Remaining product work
 
 1. Add browser-level interaction coverage for calendar and authentication flows
-2. Broaden cloud persistence/reconciliation integration tests
+2. Add normalized persistence serialization tests
 3. Retire the legacy snapshot table after a stability window
 
 
@@ -209,3 +209,8 @@ Now mode understands multi-segment tasks. It shows the active block position, ta
 ### Tested calendar gestures
 
 Pointer move and resize geometry is now a pure tested utility. Coverage includes 15-minute snapping, day-column movement, accumulated vertical and horizontal scroll, calendar-bound clamping, minimum resize duration and the 22:00 end boundary. The React event card delegates gesture math to this shared contract.
+
+
+### User-scoped local cache contract
+
+Local planner persistence is now isolated behind a tested storage contract. Cache keys include the authenticated user id, current schema envelopes are validated before use, malformed or stale-version JSON is rejected, and reconciliation tests explicitly cover equal timestamps, local-only recovery and cloud-read failures without accidental pushes.

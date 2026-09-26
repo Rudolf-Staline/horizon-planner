@@ -14,6 +14,13 @@ import {
   syncNormalizedPlanner,
 } from '../data/normalizedPlanner'
 import { choosePlannerSource } from './plannerReconcile'
+import {
+  LEGACY_STORAGE_KEY,
+  parseLocalPlannerEnvelope,
+  plannerStorageKey,
+  serializeLocalPlannerEnvelope,
+  type LocalPlannerEnvelope,
+} from './plannerStorage'
 import { migrateLegacyEventDates } from '../utils/date'
 import {
   isCalendarEntity,
@@ -26,48 +33,14 @@ import {
   toggleLogicalTaskCompleted,
 } from '../domain/taskMutations'
 
-const LEGACY_STORAGE_KEY = 'horizon-planner-v1'
-const STORAGE_PREFIX = 'horizon-planner-v2'
-
-type Snapshot = PlannerEvent[]
-
-type LocalEnvelope = {
-  schemaVersion: 2
-  events: PlannerEvent[]
-  modifiedAt: number
-}
-
-export type CloudStatus = 'local' | 'syncing' | 'synced' | 'error'
-export type AuthStatus =
-  | 'loading'
-  | 'anonymous'
-  | 'authenticated'
-  | 'recovery'
-
-function storageKey(userId: string) {
-  return `${STORAGE_PREFIX}:${userId}`
-}
-
-function loadLocalSnapshot(userId: string): LocalEnvelope | null {
-  try {
-    const raw = localStorage.getItem(storageKey(userId))
-    if (!raw) return null
-
-    const parsed = JSON.parse(raw)
-
-    if (
-      parsed &&
-      parsed.schemaVersion === 2 &&
-      Array.isArray(parsed.events) &&
-      typeof parsed.modifiedAt === 'number'
-    ) {
-      return parsed as LocalEnvelope
-    }
-  } catch {
-    return null
-  }
-
-  return null
+function loadLocalSnapshot(
+  userId: string,
+): LocalPlannerEnvelope | null {
+  return parseLocalPlannerEnvelope(
+    localStorage.getItem(
+      plannerStorageKey(userId),
+    ),
+  )
 }
 
 function persistLocal(
@@ -75,24 +48,27 @@ function persistLocal(
   events: PlannerEvent[],
   modifiedAt: number,
 ) {
-  const envelope: LocalEnvelope = {
-    schemaVersion: 2,
-    events,
-    modifiedAt,
-  }
-
   localStorage.setItem(
-    storageKey(userId),
-    JSON.stringify(envelope),
+    plannerStorageKey(userId),
+    serializeLocalPlannerEnvelope(
+      events,
+      modifiedAt,
+    ),
   )
 }
 
-function clearLocalCache(userId: string | null) {
+function clearLocalCache(
+  userId: string | null,
+) {
   if (userId) {
-    localStorage.removeItem(storageKey(userId))
+    localStorage.removeItem(
+      plannerStorageKey(userId),
+    )
   }
 
-  localStorage.removeItem(LEGACY_STORAGE_KEY)
+  localStorage.removeItem(
+    LEGACY_STORAGE_KEY,
+  )
 }
 
 const UUID_PATTERN =
