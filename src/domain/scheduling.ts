@@ -1,5 +1,10 @@
 import { END_MIN, SNAP_MINUTES, START_MIN } from './constants'
-import { dateForWeekday } from '../utils/date'
+import {
+  addDays,
+  fromISODate,
+  toISODate,
+  weekdayIndex,
+} from '../utils/date'
 import type { EnergyLevel, Placement, PlannerEvent, Priority } from './types'
 
 export function overlaps(
@@ -45,6 +50,18 @@ function energyPenalty(
   return Math.round(distanceHours * 8)
 }
 
+function dateDistance(
+  from: string,
+  to: string,
+) {
+  return Math.round(
+    (
+      fromISODate(to).getTime() -
+      fromISODate(from).getTime()
+    ) / 86_400_000,
+  )
+}
+
 function priorityUrgency(priority: Priority | undefined) {
   if (priority === 'high') return 3
   if (priority === 'medium') return 2
@@ -53,15 +70,49 @@ function priorityUrgency(priority: Priority | undefined) {
 
 export function scorePlacement(
   event: PlannerEvent,
-  placement: Pick<Placement, 'day' | 'startMin'>,
+  placement: Pick<
+    Placement,
+    'day' | 'date' | 'startMin'
+  >,
 ) {
-  const dayDistance = Math.max(0, placement.day - event.day)
+  const dayDistance =
+    event.date && placement.date
+      ? Math.max(
+          0,
+          dateDistance(
+            event.date,
+            placement.date,
+          ),
+        )
+      : Math.max(
+          0,
+          placement.day - event.day,
+        )
+
   const timeDistance =
-    Math.abs(placement.startMin - event.startMin) / SNAP_MINUTES
-  const deadline = event.deadlineDay ?? 6
+    Math.abs(
+      placement.startMin -
+        event.startMin,
+    ) / SNAP_MINUTES
+
   const daysLeftAfterPlacement =
-    Math.max(0, deadline - placement.day)
-  const urgency = priorityUrgency(event.priority)
+    event.deadlineDate &&
+    placement.date
+      ? Math.max(
+          0,
+          dateDistance(
+            placement.date,
+            event.deadlineDate,
+          ),
+        )
+      : Math.max(
+          0,
+          (event.deadlineDay ?? 6) -
+            placement.day,
+        )
+
+  const urgency =
+    priorityUrgency(event.priority)
 
   return (
     dayDistance * 80 +
@@ -98,22 +149,22 @@ export function findCandidatePlacements(
   events: PlannerEvent[],
   durationMin = event.durationMin,
 ): Placement[] {
-  const { first, last } = validDayRange(event)
-  const { start: windowStart, end: windowEnd } =
-    dailyBounds(event)
+  const {
+    start: windowStart,
+    end: windowEnd,
+  } = dailyBounds(event)
   const candidates: Placement[] = []
 
-  for (let day = first; day <= last; day++) {
+  const addCandidates = (
+    day: number,
+    date?: string,
+  ) => {
     for (
       let startMin = windowStart;
-      startMin + durationMin <= windowEnd;
+      startMin + durationMin <=
+        windowEnd;
       startMin += SNAP_MINUTES
     ) {
-      const date =
-        event.date
-          ? dateForWeekday(event.date, day)
-          : undefined
-
       const candidate: PlannerEvent = {
         ...event,
         date,
@@ -122,22 +173,125 @@ export function findCandidatePlacements(
         durationMin,
       }
 
-      if (conflictsFor(candidate, events).length > 0) continue
+      if (
+        conflictsFor(
+          candidate,
+          events,
+        ).length > 0
+      ) {
+        continue
+      }
 
       candidates.push({
         day,
         date,
         startMin,
         durationMin,
-        score: scorePlacement(event, { day, startMin }),
+        score: scorePlacement(
+          event,
+          {
+            day,
+            date,
+            startMin,
+          },
+        ),
       })
     }
   }
 
-  return candidates.sort((a, b) =>
-    a.score - b.score ||
-    a.day - b.day ||
-    a.startMin - b.startMin
+  if (event.date) {
+    const firstDate =
+      fromISODate(event.date)
+
+    let lastDate: Date
+
+    if (event.deadlineDate) {
+      lastDate =
+        fromISODate(
+          event.deadlineDate,
+        )
+    } else if (
+      event.deadlineDay !== undefined
+    ) {
+      const delta =
+        event.deadlineDay -
+        event.day
+
+      if (delta < 0) {
+        return []
+      }
+
+      lastDate =
+        addDays(firstDate, delta)
+    } else {
+      lastDate =
+        addDays(
+          firstDate,
+          Math.max(
+            0,
+            6 - event.day,
+          ),
+        )
+    }
+
+    if (
+      lastDate.getTime() <
+      firstDate.getTime()
+    ) {
+      return []
+    }
+
+    const totalDays =
+      Math.min(
+        31,
+        Math.max(
+          0,
+          Math.round(
+            (
+              lastDate.getTime() -
+              firstDate.getTime()
+            ) / 86_400_000,
+          ),
+        ),
+      )
+
+    for (
+      let offset = 0;
+      offset <= totalDays;
+      offset++
+    ) {
+      const current =
+        addDays(
+          firstDate,
+          offset,
+        )
+
+      addCandidates(
+        weekdayIndex(current),
+        toISODate(current),
+      )
+    }
+  } else {
+    const { first, last } =
+      validDayRange(event)
+
+    for (
+      let day = first;
+      day <= last;
+      day++
+    ) {
+      addCandidates(day)
+    }
+  }
+
+  return candidates.sort(
+    (a, b) =>
+      a.score - b.score ||
+      (a.date ?? '').localeCompare(
+        b.date ?? '',
+      ) ||
+      a.day - b.day ||
+      a.startMin - b.startMin,
   )
 }
 

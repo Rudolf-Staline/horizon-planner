@@ -4,11 +4,9 @@ import { parseQuickTask } from '../domain/naturalLanguage'
 import { planFlexibleTask } from '../domain/scheduling'
 import type { PlannerEvent } from '../domain/types'
 import {
-  dateForWeekday,
   eventDateLabel,
   fromISODate,
   toISODate,
-  weekdayIndex,
 } from '../utils/date'
 import { formatTime } from '../utils/time'
 
@@ -50,7 +48,7 @@ export function CommandPalette({
     () =>
       parseQuickTask(
         value,
-        weekdayIndex(context),
+        contextDate,
         contextStartMin,
       ),
     [value, contextDate],
@@ -62,10 +60,6 @@ export function CommandPalette({
     return {
       id: 'preview',
       ...parsed,
-      date: dateForWeekday(
-        contextDate,
-        parsed.day,
-      ),
     } satisfies PlannerEvent
   }, [parsed, contextDate])
 
@@ -94,10 +88,6 @@ export function CommandPalette({
       segmentIndex: 0,
       segmentCount: 1,
       ...parsed,
-      date: dateForWeekday(
-        contextDate,
-        parsed.day,
-      ),
     }
 
     if (draft.kind === 'fixed') {
@@ -130,10 +120,7 @@ export function CommandPalette({
           title: draft.title,
           date:
             placement.date ??
-            dateForWeekday(
-              draft.date!,
-              placement.day,
-            ),
+            draft.date,
           day: placement.day,
           startMin: placement.startMin,
           durationMin:
@@ -151,12 +138,8 @@ export function CommandPalette({
 
   const previewDate =
     previewPlacement?.date ??
-    (previewPlacement
-      ? dateForWeekday(
-          contextDate,
-          previewPlacement.day,
-        )
-      : null)
+    draftPreview?.date ??
+    null
 
   return (
     <div

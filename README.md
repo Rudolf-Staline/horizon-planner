@@ -156,3 +156,8 @@ Small screens now keep all primary product sections reachable through a persiste
 ### Flexible is behavior, not a category
 
 `flexible` now exists only as a scheduling `kind`. Domain categories are limited to course, project, personal, focus, routine, admin and neutral. Legacy planner events using `category = flexible` are migrated to `neutral` while preserving their flexible scheduling behavior.
+
+
+### Date-aware natural-language planning
+
+Natural-language commands now resolve tomorrow, named weekdays and weekday deadlines to concrete ISO dates. The scheduling engine can place work across week boundaries when a concrete deadline allows it, instead of clamping every request to the current Monday-Sunday grid.

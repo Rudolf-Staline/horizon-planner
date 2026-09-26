@@ -91,3 +91,48 @@ describe('constraint placement', () => {
     expect(plan?.placements.reduce((sum, p) => sum + p.durationMin, 0)).toBe(120)
   })
 })
+
+
+describe('date-aware placement', () => {
+  it('crosses a week boundary when the concrete deadline allows it', () => {
+    const event = base({
+      date: '2026-09-27',
+      day: 6,
+      deadlineDate: '2026-09-28',
+      deadlineDay: 0,
+      windowStartMin: 9 * 60,
+      windowEndMin: 10 * 60,
+    })
+
+    const sundayBlocker = base({
+      id: 'sunday',
+      date: '2026-09-27',
+      day: 6,
+      kind: 'fixed',
+      startMin: 9 * 60,
+      durationMin: 60,
+    })
+
+    const placement = findBestPlacement(
+      event,
+      [sundayBlocker],
+    )
+
+    expect(placement).not.toBeNull()
+    expect(placement!.date).toBe('2026-09-28')
+    expect(placement!.day).toBe(0)
+  })
+
+  it('rejects a concrete deadline earlier than the task date', () => {
+    const event = base({
+      date: '2026-09-28',
+      day: 0,
+      deadlineDate: '2026-09-27',
+      deadlineDay: 6,
+    })
+
+    expect(
+      findBestPlacement(event, []),
+    ).toBeNull()
+  })
+})
