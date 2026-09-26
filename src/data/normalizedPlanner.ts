@@ -1,16 +1,12 @@
 import type { PlannerEvent } from '../domain/types'
 import {
-  baseTaskTitle,
-  groupTaskEvents,
-  isCalendarEntity,
-  logicalTaskId,
-} from '../domain/taskIdentity'
-import {
-  dateForWeekday,
   fromISODate,
   toISODate,
   weekdayIndex,
 } from '../utils/date'
+import {
+  buildNormalizedPlannerRows,
+} from './normalizedPlannerMapping'
 import { supabase } from '../lib/supabase'
 
 export type NormalizedPlannerSnapshot = {
@@ -18,35 +14,8 @@ export type NormalizedPlannerSnapshot = {
   modifiedAt: number
 }
 
-function localDateTimeToIso(
-  date: string,
-  minutes: number,
-) {
-  const local = fromISODate(date)
-  local.setHours(
-    Math.floor(minutes / 60),
-    minutes % 60,
-    0,
-    0,
-  )
-  return local.toISOString()
-}
-
 function minutesFromDate(date: Date) {
   return date.getHours() * 60 + date.getMinutes()
-}
-
-function timeValue(minutes?: number) {
-  if (minutes === undefined) return null
-
-  const hour = String(
-    Math.floor(minutes / 60),
-  ).padStart(2, '0')
-  const minute = String(
-    minutes % 60,
-  ).padStart(2, '0')
-
-  return `${hour}:${minute}:00`
 }
 
 function parseTimeValue(value: string | null) {
@@ -342,57 +311,17 @@ export async function syncNormalizedPlanner(
     ),
   )
 
-  const taskRows = [...taskGroups.entries()].map(
-    ([taskId, segments]) => {
-      const primary = segments[0]
-      const completed =
-        segments.length > 0 &&
-        segments.every(
-          (segment) => segment.completed,
-        )
-      const existing =
-        existingTaskById.get(taskId)
-
-      return {
-        id: taskId,
-        user_id: userId,
-        project_id:
-          primary.projectId ?? null,
-        title:
-          baseTaskTitle(primary.title),
-        notes: null,
-        category: primary.category,
-        priority:
-          primary.priority ?? 'medium',
-        kind: primary.kind,
-        duration_min:
-          segments.reduce(
-            (total, segment) =>
-              total +
-              segment.durationMin,
-            0,
-          ),
-        locked:
-          segments.every(
-            (segment) =>
-              Boolean(segment.locked),
-          ),
-        status:
-          completed
-            ? 'completed'
-            : 'planned',
-        completed_at:
-          completed
-            ? (
-                existing?.status ===
-                  'completed' &&
-                existing.completed_at
-                  ? existing.completed_at
-                  : new Date().toISOString()
-              )
-            : null,
-      }
-    },
+  const {
+    taskIds,
+    taskRows,
+    segmentRows,
+    constraintRows,
+    fixedTaskIds,
+    calendarRows,
+  } = buildNormalizedPlannerRows(
+    userId,
+    events,
+    existingTaskById,
   )
 
   if (taskRows.length > 0) {

@@ -76,8 +76,7 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 ## Remaining product work
 
 1. Add browser-level interaction coverage for calendar and authentication flows
-2. Add normalized persistence serialization tests
-3. Retire the legacy snapshot table after a stability window
+2. Retire the legacy snapshot table after a stability window
 
 
 ## Supabase
@@ -214,3 +213,8 @@ Pointer move and resize geometry is now a pure tested utility. Coverage includes
 ### User-scoped local cache contract
 
 Local planner persistence is now isolated behind a tested storage contract. Cache keys include the authenticated user id, current schema envelopes are validated before use, malformed or stale-version JSON is rejected, and reconciliation tests explicitly cover equal timestamps, local-only recovery and cloud-read failures without accidental pushes.
+
+
+### Tested normalized persistence mapping
+
+Projection from planner events to Supabase rows is now a pure tested layer. Multi-segment work produces one logical task row plus multiple planned segments, flexible constraints are written once per task, completion timestamps are preserved, fixed tasks are identified for constraint cleanup, manual calendar events stay separate, and virtual routine occurrences are never persisted as manual planner data.
