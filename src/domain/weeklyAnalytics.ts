@@ -1,6 +1,8 @@
 import type {
   PlannerEvent,
 } from './types'
+import { taskOverdueState } from './overdue'
+import { groupTaskEvents } from './taskIdentity'
 import {
   formatDayHeading,
   toISODate,
@@ -17,6 +19,14 @@ export function buildWeeklyAnalytics(
     new Set(
       dates.map(toISODate),
     )
+  const todayDate = toISODate(anchor)
+  const overdueTasks = [
+    ...groupTaskEvents(events).values(),
+  ]
+    .map((segments) =>
+      taskOverdueState(segments, todayDate),
+    )
+    .filter((state) => state !== null)
 
   const active =
     events.filter(
@@ -130,6 +140,12 @@ export function buildWeeklyAnalytics(
     plannedMinutes,
     completedMinutes,
     completionRate: plannedMinutes > 0 ? Math.round((completedMinutes / plannedMinutes) * 100) : 0,
+    overdueCount: overdueTasks.length,
+    overdueMinutes: overdueTasks.reduce(
+      (total, task) =>
+        total + task.remainingMinutes,
+      0,
+    ),
     byDay,
     max,
     busiest,

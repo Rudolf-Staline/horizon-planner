@@ -2,6 +2,7 @@ import {
   useMemo,
 } from 'react'
 import {
+  AlertTriangle,
   BarChart3,
   Clock3,
   Flame,
@@ -111,6 +112,16 @@ export function AnalyticsView({
               metrics.routineMinutes,
             )}{' '}h
           </strong>
+        </article>
+        <article className="overdue-metric">
+          <AlertTriangle size={18}/>
+          <span>Tâches en retard</span>
+          <strong>
+            {metrics.overdueCount}
+          </strong>
+          <small>
+            {hours(metrics.overdueMinutes)} h restantes
+          </small>
         </article>
       </section>
 

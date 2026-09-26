@@ -1,4 +1,12 @@
-import { CheckCircle2, Layers3, Lock, Trash2, X } from 'lucide-react'
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  Layers3,
+  Lock,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type {
   Category,
@@ -13,6 +21,11 @@ import {
 } from '../domain/constants'
 import { taskProgress } from '../domain/taskIdentity'
 import {
+  overdueLabel,
+  taskOverdueState,
+} from '../domain/overdue'
+import {
+  addDays,
   fromISODate,
   toISODate,
   weekdayIndex,
@@ -36,6 +49,13 @@ interface Props {
   onDeleteTask: (id: string) => void
   onToggleSegment: (id: string) => void
   onToggleTask: (id: string) => void
+  todayDate: string
+  onReplan: (
+    id: string,
+    newDeadlineDate: string,
+  ) =>
+    | { ok: true }
+    | { ok: false; message: string }
   readOnly?: boolean
 }
 
@@ -49,6 +69,8 @@ export function TaskDetailPanel({
   onDeleteTask,
   onToggleSegment,
   onToggleTask,
+  todayDate,
+  onReplan,
   readOnly = false,
 }: Props) {
   const [title, setTitle] =
@@ -95,6 +117,14 @@ export function TaskDetailPanel({
     useState(Boolean(event.splittable))
   const [minChunkMin, setMinChunkMin] =
     useState(event.minChunkMin ?? 45)
+  const [replanDeadline, setReplanDeadline] =
+    useState(() =>
+      toISODate(
+        addDays(fromISODate(todayDate), 7),
+      ),
+    )
+  const [replanError, setReplanError] =
+    useState<string | null>(null)
   const [
     constraintError,
     setConstraintError,
@@ -104,6 +134,15 @@ export function TaskDetailPanel({
     event.entityType === 'task' &&
     segments.length > 1
   const progress = taskProgress(segments)
+  const overdue =
+    event.entityType === 'task'
+      ? taskOverdueState(
+          segments.length > 0
+            ? segments
+            : [event],
+          todayDate,
+        )
+      : null
 
   useEffect(() => {
     void listProjects(userId)
@@ -155,8 +194,28 @@ export function TaskDetailPanel({
     setMinChunkMin(
       event.minChunkMin ?? 45,
     )
+    setReplanDeadline(
+      toISODate(
+        addDays(fromISODate(todayDate), 7),
+      ),
+    )
+    setReplanError(null)
     setConstraintError(null)
-  }, [event, segments.length])
+  }, [event, segments.length, todayDate])
+
+  const replan = () => {
+    const result = onReplan(
+      event.id,
+      replanDeadline,
+    )
+
+    if (!result.ok) {
+      setReplanError(result.message)
+      return
+    }
+
+    setReplanError(null)
+  }
 
   const save = () => {
     const nextDate = fromISODate(date)
@@ -281,8 +340,8 @@ export function TaskDetailPanel({
 
   const removeSegment = () => {
     const label = multiSegment
-      ? 'Supprimer uniquement ce bloc de « ' + event.title + ' » ?'
-      : 'Supprimer « ' + event.title + ' » ?'
+      ? `${overdue ? 'Abandonner' : 'Supprimer'} uniquement ce bloc de « ${event.title} » ?`
+      : `${overdue ? 'Abandonner' : 'Supprimer'} « ${event.title} » ?`
 
     if (!window.confirm(label)) return
 
@@ -293,7 +352,8 @@ export function TaskDetailPanel({
   const removeTask = () => {
     if (
       !window.confirm(
-        'Supprimer la tâche entière « ' +
+        (overdue ? 'Abandonner' : 'Supprimer') +
+          ' la tâche entière « ' +
           event.title +
           ' » et ses ' +
           segments.length +
@@ -338,6 +398,72 @@ export function TaskDetailPanel({
         <p className="task-detail-readonly" role="status">
           Événement externe en lecture seule. Modifiez-le dans son agenda d’origine, puis synchronisez la source.
         </p>
+      )}
+
+      {overdue && (
+        <section
+          className="task-overdue-card"
+          role="status"
+        >
+          <div className="task-overdue-head">
+            <AlertTriangle size={18}/>
+            <div>
+              <strong>
+                {overdueLabel(overdue.days)}
+              </strong>
+              <span>
+                {overdue.remainingMinutes} min restantes · échéance du{' '}
+                {new Intl.DateTimeFormat('fr-FR', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                }).format(fromISODate(overdue.deadlineDate))}
+              </span>
+            </div>
+          </div>
+
+          {!readOnly &&
+            event.kind === 'flexible' &&
+            !segments.some((segment) => segment.locked) && (
+              <div className="task-overdue-actions">
+                <label>
+                  <span>Nouvelle échéance</span>
+                  <input
+                    type="date"
+                    min={todayDate}
+                    value={replanDeadline}
+                    onChange={(inputEvent) =>
+                      setReplanDeadline(
+                        inputEvent.target.value,
+                      )}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={!replanDeadline}
+                  onClick={replan}
+                >
+                  <CalendarClock size={15}/>
+                  Reporter et replanifier
+                </button>
+              </div>
+            )}
+
+          {!readOnly &&
+            (event.kind !== 'flexible' ||
+              segments.some((segment) => segment.locked)) && (
+              <p>
+                Modifiez manuellement la date ou déverrouillez la tâche avant de la replanifier.
+              </p>
+            )}
+
+          {replanError && (
+            <p className="planning-error" role="alert">
+              {replanError}
+            </p>
+          )}
+        </section>
       )}
 
       {multiSegment && (
@@ -715,8 +841,10 @@ export function TaskDetailPanel({
           >
             <Trash2 size={16}/>
             {multiSegment
-              ? 'Supprimer ce bloc'
-              : 'Supprimer'}
+              ? `${overdue ? 'Abandonner' : 'Supprimer'} ce bloc`
+              : overdue
+                ? 'Abandonner la tâche'
+                : 'Supprimer'}
           </button>
 
           {multiSegment && (
@@ -725,7 +853,9 @@ export function TaskDetailPanel({
               onClick={removeTask}
             >
               <Trash2 size={16}/>
-              Supprimer la tâche
+              {overdue
+                ? 'Abandonner la tâche'
+                : 'Supprimer la tâche'}
             </button>
           )}
         </div>

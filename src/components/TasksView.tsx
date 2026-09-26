@@ -16,6 +16,12 @@ import {
 } from 'react'
 import { CATEGORY_LABEL } from '../domain/constants'
 import { groupTaskEvents, taskProgress } from '../domain/taskIdentity'
+import {
+  daysPastDeadline,
+  isDeadlineOverdue,
+  overdueLabel,
+  taskOverdueState,
+} from '../domain/overdue'
 import type {
   Category,
   PlannerEvent,
@@ -104,6 +110,12 @@ export function TasksView({
     useState(() => tomorrowDate(todayDate))
   const [planningTime, setPlanningTime] =
     useState('09:00')
+  const [planningDeadline, setPlanningDeadline] =
+    useState(() =>
+      toISODate(
+        addDays(fromISODate(todayDate), 7),
+      ),
+    )
 
   const refreshInbox =
     useCallback(async () => {
@@ -145,6 +157,11 @@ export function TasksView({
   useEffect(() => {
     if (!planningId) {
       setPlanningDate(tomorrowDate(todayDate))
+      setPlanningDeadline(
+        toISODate(
+          addDays(fromISODate(todayDate), 7),
+        ),
+      )
     }
   }, [planningId, todayDate])
 
@@ -166,6 +183,10 @@ export function TasksView({
           primary,
           nextSegment,
           progress,
+          overdue: taskOverdueState(
+            segments,
+            todayDate,
+          ),
         }
       })
       .filter(({ primary, progress }) => {
@@ -191,17 +212,26 @@ export function TasksView({
         )
       })
       .sort(
-        (a, b) =>
-          (a.nextSegment.date ?? '').localeCompare(
+        (a, b) => {
+          if (a.overdue || b.overdue) {
+            if (!a.overdue) return 1
+            if (!b.overdue) return -1
+            if (a.overdue.days !== b.overdue.days) {
+              return b.overdue.days - a.overdue.days
+            }
+          }
+
+          return (a.nextSegment.date ?? '').localeCompare(
             b.nextSegment.date ?? '',
           ) ||
           a.nextSegment.startMin -
             b.nextSegment.startMin ||
           a.primary.title.localeCompare(
             b.primary.title,
-          ),
+          )
+        },
       )
-  }, [events, filter, query])
+  }, [events, filter, query, todayDate])
 
   const visibleInbox = useMemo(() => {
     if (filter === 'completed') {
@@ -211,14 +241,34 @@ export function TasksView({
     const normalized =
       query.trim().toLowerCase()
 
-    return inbox.filter(
-      (task) =>
-        !normalized ||
-        task.title
-          .toLowerCase()
-          .includes(normalized),
-    )
-  }, [inbox, filter, query])
+    return inbox
+      .filter(
+        (task) =>
+          !normalized ||
+          task.title
+            .toLowerCase()
+            .includes(normalized),
+      )
+      .sort((a, b) => {
+        const aOverdue = isDeadlineOverdue(
+          a.deadlineDate,
+          false,
+          todayDate,
+        )
+        const bOverdue = isDeadlineOverdue(
+          b.deadlineDate,
+          false,
+          todayDate,
+        )
+
+        if (aOverdue !== bOverdue) {
+          return aOverdue ? -1 : 1
+        }
+
+        return (a.deadlineDate ?? '9999-12-31')
+          .localeCompare(b.deadlineDate ?? '9999-12-31')
+      })
+  }, [inbox, filter, query, todayDate])
 
   const openCount =
     [...groupTaskEvents(events).values()]
@@ -229,6 +279,13 @@ export function TasksView({
 
   const create = async () => {
     if (!title.trim() || busy) return
+
+    if (deadlineDate && deadlineDate < todayDate) {
+      setError(
+        'L’échéance d’une nouvelle tâche ne peut pas être antérieure à aujourd’hui.',
+      )
+      return
+    }
 
     setBusy(true)
     setError(null)
@@ -270,9 +327,15 @@ export function TasksView({
   const removeInbox = async (
     task: InboxTask,
   ) => {
+    const overdue = isDeadlineOverdue(
+      task.deadlineDate,
+      false,
+      todayDate,
+    )
+
     if (
       !window.confirm(
-        `Supprimer « ${task.title} » ?`,
+        `${overdue ? 'Abandonner' : 'Supprimer'} « ${task.title} » ?`,
       )
     ) {
       return
@@ -330,6 +393,32 @@ export function TasksView({
   const scheduleInbox = async (
     task: InboxTask,
   ) => {
+    const overdue = isDeadlineOverdue(
+      task.deadlineDate,
+      false,
+      todayDate,
+    )
+    const effectiveDeadline = overdue
+      ? planningDeadline
+      : task.deadlineDate
+
+    if (planningDate < todayDate) {
+      setError(
+        'La planification ne peut pas commencer dans le passé.',
+      )
+      return
+    }
+
+    if (
+      effectiveDeadline &&
+      effectiveDeadline < planningDate
+    ) {
+      setError(
+        'La nouvelle échéance doit être postérieure ou égale à la date planifiée.',
+      )
+      return
+    }
+
     const [hour, minute] =
       planningTime
         .split(':')
@@ -364,8 +453,14 @@ export function TasksView({
           task.priority,
         kind: 'flexible',
         deadlineDate:
-          task.deadlineDate ??
+          effectiveDeadline ??
           undefined,
+        deadlineDay:
+          effectiveDeadline
+            ? weekdayIndex(
+                fromISODate(effectiveDeadline),
+              )
+            : undefined,
       })
 
       setInbox((current) =>
@@ -583,6 +678,7 @@ export function TasksView({
             </span>
             <input
               type="date"
+              min={todayDate}
               value={deadlineDate}
               onChange={(event) =>
                 setDeadlineDate(
@@ -654,9 +750,16 @@ export function TasksView({
 
           <div className="task-inbox-list">
             {visibleInbox.map(
-              (task) => (
+              (task) => {
+                const overdue = isDeadlineOverdue(
+                  task.deadlineDate,
+                  false,
+                  todayDate,
+                )
+
+                return (
                 <article
-                  className="task-inbox-row"
+                  className={`task-inbox-row${overdue ? ' overdue' : ''}`}
                   key={task.id}
                 >
                   <button
@@ -688,6 +791,16 @@ export function TasksView({
                           )}`
                         : ''}
                     </span>
+                    {overdue && task.deadlineDate && (
+                      <small className="task-overdue-label">
+                        {overdueLabel(
+                          daysPastDeadline(
+                            task.deadlineDate,
+                            todayDate,
+                          ),
+                        )}
+                      </small>
+                    )}
                   </div>
 
                   <span
@@ -703,20 +816,44 @@ export function TasksView({
                   <div className="task-inbox-actions">
                     <button
                       onClick={() => {
+                        const opening =
+                          planningId !== task.id
                         setPlanningId(
-                          planningId ===
-                            task.id
-                            ? null
-                            : task.id,
+                          opening ? task.id : null,
                         )
+                        if (opening) {
+                          setPlanningDate(
+                            tomorrowDate(todayDate),
+                          )
+                          setPlanningDeadline(
+                            toISODate(
+                              addDays(
+                                fromISODate(todayDate),
+                                7,
+                              ),
+                            ),
+                          )
+                        }
                       }}
                     >
                       <CalendarPlus size={15}/>
-                      Planifier
+                      {overdue
+                        ? 'Replanifier'
+                        : 'Planifier'}
                     </button>
                     <button
                       className="danger"
                       disabled={busy}
+                      aria-label={
+                        overdue
+                          ? 'Abandonner la tâche'
+                          : 'Supprimer la tâche'
+                      }
+                      title={
+                        overdue
+                          ? 'Abandonner'
+                          : 'Supprimer'
+                      }
                       onClick={() =>
                         void removeInbox(
                           task,
@@ -728,9 +865,13 @@ export function TasksView({
 
                   {planningId ===
                     task.id && (
-                    <div className="task-inline-schedule">
+                    <div
+                      className={`task-inline-schedule${overdue ? ' overdue' : ''}`}
+                    >
                       <input
                         type="date"
+                        min={todayDate}
+                        aria-label="Date planifiée"
                         value={
                           planningDate
                         }
@@ -745,6 +886,7 @@ export function TasksView({
                       <input
                         type="time"
                         step={900}
+                        aria-label="Heure planifiée"
                         value={
                           planningTime
                         }
@@ -756,11 +898,24 @@ export function TasksView({
                               .value,
                           )}
                       />
+                      {overdue && (
+                        <input
+                          type="date"
+                          min={planningDate}
+                          aria-label="Nouvelle échéance"
+                          value={planningDeadline}
+                          onChange={(event) =>
+                            setPlanningDeadline(
+                              event.target.value,
+                            )}
+                        />
+                      )}
                       <button
                         className="btn primary"
                         disabled={
                           busy ||
-                          !planningDate
+                          !planningDate ||
+                          (overdue && !planningDeadline)
                         }
                         onClick={() =>
                           void scheduleInbox(
@@ -772,7 +927,8 @@ export function TasksView({
                     </div>
                   )}
                 </article>
-              ),
+                )
+              },
             )}
           </div>
         </section>
@@ -807,6 +963,7 @@ export function TasksView({
                 primary,
                 nextSegment,
                 progress,
+                overdue,
               }) => (
                 <article
                   key={taskId}
@@ -814,6 +971,9 @@ export function TasksView({
                     'task-row ' +
                     (progress.completed
                       ? 'completed'
+                      : '') +
+                    (overdue
+                      ? ' overdue'
                       : '')
                   }
                   onClick={() =>
@@ -847,6 +1007,13 @@ export function TasksView({
                     <strong>
                       {primary.title}
                     </strong>
+
+                    {overdue && (
+                      <small className="task-overdue-label">
+                        {overdueLabel(overdue.days)} ·{' '}
+                        {overdue.remainingMinutes} min restantes
+                      </small>
+                    )}
 
                     {progress.totalSegments > 1 ? (
                       <>

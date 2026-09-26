@@ -179,5 +179,47 @@ describe(
         ).toBeNull()
       },
     )
+
+    it(
+      'counts overdue logical tasks once and only their remaining duration',
+      () => {
+        const metrics =
+          buildWeeklyAnalytics(
+            [
+              event(
+                'segment-1',
+                '2026-09-21',
+                60,
+                {
+                  taskId: 'task-1',
+                  segmentCount: 2,
+                  completed: true,
+                  deadlineDate: '2026-09-22',
+                },
+              ),
+              event(
+                'segment-2',
+                '2026-09-22',
+                45,
+                {
+                  taskId: 'task-1',
+                  segmentIndex: 1,
+                  segmentCount: 2,
+                  deadlineDate: '2026-09-22',
+                },
+              ),
+            ],
+            new Date(
+              2026,
+              8,
+              23,
+              12,
+            ),
+          )
+
+        expect(metrics.overdueCount).toBe(1)
+        expect(metrics.overdueMinutes).toBe(45)
+      },
+    )
   },
 )

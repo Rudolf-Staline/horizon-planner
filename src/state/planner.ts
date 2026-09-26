@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
-import { conflictsFor } from '../domain/scheduling'
+import {
+  conflictsFor,
+  planFlexibleTask,
+} from '../domain/scheduling'
 import { proposeConflictReplan } from '../domain/replanning'
 import type { SchedulingOptions } from '../domain/scheduling'
 import { currentCloudUser } from '../data/auth'
@@ -41,8 +44,15 @@ export type AuthStatus =
 
 type Snapshot = PlannerEvent[]
 
-import { fromISODate, migrateLegacyEventDates } from '../utils/date'
-import { zonedDateToIso } from '../utils/timezone'
+import {
+  fromISODate,
+  migrateLegacyEventDates,
+  weekdayIndex,
+} from '../utils/date'
+import {
+  zonedDateMinutes,
+  zonedDateToIso,
+} from '../utils/timezone'
 import {
   isCalendarEntity,
   isReadOnlyCalendarEvent,
@@ -695,6 +705,173 @@ export function usePlanner() {
     setLastConflictId(null)
   }
 
+  const replanOverdueTask = (
+    id: string,
+    newDeadlineDate: string,
+  ) => {
+    const target = events.find((event) => event.id === id)
+
+    if (
+      !target ||
+      target.entityType !== 'task' ||
+      target.kind !== 'flexible'
+    ) {
+      return {
+        ok: false as const,
+        message: 'Seules les tâches flexibles peuvent être replanifiées automatiquement.',
+      }
+    }
+
+    const taskId = logicalTaskId(target)
+    const taskSegments = events.filter(
+      (event) =>
+        event.entityType === 'task' &&
+        logicalTaskId(event) === taskId,
+    )
+    const pending = taskSegments.filter(
+      (segment) => !segment.completed,
+    )
+
+    if (
+      pending.length === 0 ||
+      pending.some((segment) => segment.locked)
+    ) {
+      return {
+        ok: false as const,
+        message: 'Cette tâche est terminée ou comporte un bloc verrouillé.',
+      }
+    }
+
+    const now = new Date()
+    const todayDate = zonedDateToIso(
+      now,
+      cloudPreferences.timezone,
+    )
+
+    if (newDeadlineDate < todayDate) {
+      return {
+        ok: false as const,
+        message: 'La nouvelle échéance ne peut pas être antérieure à aujourd’hui.',
+      }
+    }
+
+    const planningStep = cloudPreferences.planningStepMin
+    const currentMinutes = zonedDateMinutes(
+      now,
+      cloudPreferences.timezone,
+    )
+    const startMin = Math.max(
+      cloudPreferences.workdayStartMin,
+      Math.ceil(currentMinutes / planningStep) * planningStep,
+    )
+    const primary = pending[0]
+    const draft: PlannerEvent = {
+      ...primary,
+      date: todayDate,
+      day: weekdayIndex(fromISODate(todayDate)),
+      startMin,
+      durationMin: pending.reduce(
+        (total, segment) => total + segment.durationMin,
+        0,
+      ),
+      deadlineDate: newDeadlineDate,
+      deadlineDay: weekdayIndex(fromISODate(newDeadlineDate)),
+      splittable:
+        pending.length > 1 || Boolean(primary.splittable),
+      completed: false,
+    }
+    const pendingIds = new Set(
+      pending.map((segment) => segment.id),
+    )
+    const blockers = events.filter(
+      (event) => !pendingIds.has(event.id),
+    )
+
+    if (startMin > cloudPreferences.workdayStartMin) {
+      blockers.push({
+        ...draft,
+        id: `past-window:${taskId}:${todayDate}`,
+        entityType: 'calendar',
+        taskId: undefined,
+        date: todayDate,
+        day: weekdayIndex(fromISODate(todayDate)),
+        startMin: 0,
+        durationMin: Math.min(startMin, 24 * 60),
+        kind: 'fixed',
+        locked: true,
+        deadlineDate: undefined,
+        deadlineDay: undefined,
+      })
+    }
+    const plan = planFlexibleTask(
+      draft,
+      blockers,
+      {
+        startMin: cloudPreferences.workdayStartMin,
+        endMin: cloudPreferences.workdayEndMin,
+        activeDays: cloudPreferences.activeDays,
+        bufferMin: cloudPreferences.bufferMin,
+        planningStepMin: cloudPreferences.planningStepMin,
+        focusBlockMin: cloudPreferences.focusBlockMin,
+        energyPreference: cloudPreferences.energyPreference,
+      },
+    )
+
+    if (!plan) {
+      return {
+        ok: false as const,
+        message: 'Aucun créneau libre ne permet de respecter cette nouvelle échéance.',
+      }
+    }
+
+    const replanned = plan.placements.map(
+      (placement, index): PlannerEvent => ({
+        ...draft,
+        id: pending[index]?.id ?? crypto.randomUUID(),
+        taskId,
+        date: placement.date ?? todayDate,
+        day: placement.day,
+        startMin: placement.startMin,
+        durationMin: placement.durationMin,
+        completed: false,
+      }),
+    )
+    const retained = taskSegments
+      .filter((segment) => segment.completed)
+      .map((segment) => ({
+        ...segment,
+        deadlineDate: newDeadlineDate,
+        deadlineDay: weekdayIndex(fromISODate(newDeadlineDate)),
+      }))
+    const rebuilt = [...retained, ...replanned]
+      .sort(
+        (a, b) =>
+          (a.date ?? '').localeCompare(b.date ?? '') ||
+          a.startMin - b.startMin,
+      )
+      .map((segment, index, all) => ({
+        ...segment,
+        segmentIndex: index,
+        segmentCount: all.length,
+      }))
+    const next = [
+      ...events.filter(
+        (event) =>
+          !(
+            event.entityType === 'task' &&
+            logicalTaskId(event) === taskId
+          ),
+      ),
+      ...rebuilt,
+    ]
+
+    commit(next)
+    setSelectedId(replanned[0]?.id ?? null)
+    setLastConflictId(null)
+
+    return { ok: true as const }
+  }
+
   const createEvents = (created: PlannerEvent[]) => {
     if (created.length === 0) return
 
@@ -929,6 +1106,7 @@ export function usePlanner() {
     setSelectedId,
     updateEvent,
     editEvent,
+    replanOverdueTask,
     createEvent,
     createEvents,
     toggleCompleted,

@@ -31,7 +31,11 @@ import {
   localDateTimeToIso,
   zonedDateToIso,
 } from './utils/timezone'
-import { isReadOnlyCalendarEvent } from './domain/taskIdentity'
+import {
+  groupTaskEvents,
+  isReadOnlyCalendarEvent,
+} from './domain/taskIdentity'
+import { taskOverdueState } from './domain/overdue'
 import {
   expandRoutines,
   listRoutineExceptions,
@@ -123,6 +127,38 @@ export default function App() {
     const checkReminders = () => {
       const now = Date.now()
       const lead = planner.cloudPreferences.reminderLeadMin * 60_000
+      const todayDate = zonedDateToIso(
+        new Date(now),
+        planner.cloudPreferences.timezone,
+      )
+      const overdueTasks = [
+        ...groupTaskEvents(planner.events).values(),
+      ]
+        .map((segments) =>
+          taskOverdueState(segments, todayDate),
+        )
+        .filter((state) => state !== null)
+      const overdueKey =
+        `horizon-overdue:${planner.cloudUserId}:${todayDate}`
+
+      if (
+        overdueTasks.length > 0 &&
+        !sessionStorage.getItem(overdueKey)
+      ) {
+        const remainingMinutes = overdueTasks.reduce(
+          (total, task) =>
+            total + task.remainingMinutes,
+          0,
+        )
+        new Notification(
+          `Horizon · ${overdueTasks.length} tâche${overdueTasks.length > 1 ? 's' : ''} en retard`,
+          {
+            body: `${remainingMinutes} min restent à replanifier.`,
+          },
+        )
+        sessionStorage.setItem(overdueKey, '1')
+      }
+
       for (const event of planner.events) {
         if (event.virtual || !event.date) continue
         const startMs = new Date(
@@ -606,6 +642,11 @@ export default function App() {
           onDeleteTask={planner.deleteTask}
           onToggleSegment={planner.toggleCompleted}
           onToggleTask={planner.toggleTaskCompleted}
+          todayDate={zonedDateToIso(
+            new Date(),
+            planner.cloudPreferences.timezone,
+          )}
+          onReplan={planner.replanOverdueTask}
           readOnly={isReadOnlyCalendarEvent(planner.selected)}
         />
       )}
