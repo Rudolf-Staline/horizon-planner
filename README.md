@@ -55,7 +55,6 @@ npm test
 - `src/domain/` — planner types, scheduling constraints, scoring and pure domain rules
 - `src/state/` — local state, history, conflict state, persistence boundary
 - `src/components/` — UI and interaction components
-- `src/hooks/` — pointer interaction logic
 - `src/utils/` — time calculations
 - `docs/` — product/engine contracts that should remain independent from UI implementation
 
@@ -257,3 +256,8 @@ Same-day natural-language planning now rounds the current clock forward to the n
 ### Prototype seed removal
 
 The obsolete hard-coded demo schedule has been removed. Horizon no longer carries personal sample events or a May-2024-era seed layer in the runtime repository; planner state now comes from authenticated normalized data, the user-scoped local cache, and explicit user actions.
+
+
+### Single calendar gesture implementation
+
+The unused legacy `useEventGesture` hook has been removed. Calendar pointer geometry now has one implementation only: the tested pure helpers in `src/utils/pointer.ts`, used directly by `EventCard`.
