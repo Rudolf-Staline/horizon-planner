@@ -440,7 +440,6 @@ Deno.serve(async (req) => {
         routines,
         calendarEvents,
         plannedSegments,
-        snapshots,
       ] = await Promise.all([
         countTable("profiles"),
         countTable("projects"),
@@ -448,7 +447,6 @@ Deno.serve(async (req) => {
         countTable("routines"),
         countTable("calendar_events"),
         countTable("planned_segments"),
-        countTable("planner_snapshots"),
       ]);
 
       return json(req, {
@@ -458,7 +456,6 @@ Deno.serve(async (req) => {
         routines,
         calendarEvents,
         plannedSegments,
-        snapshots,
       });
     }
 

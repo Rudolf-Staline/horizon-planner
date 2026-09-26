@@ -1,41 +1,42 @@
 # Horizon data model
 
-The calendar UI must not become the database model.
+The calendar UI is a projection of the domain, not the database model.
 
-## Normalized domain
+## Authoritative normalized domain
 
-- `profiles` — user display/timezone preferences.
+- `profiles` — user display and timezone preferences.
 - `projects` — containers for related work.
-- `tasks` — work definitions: title, duration, category, priority, fixed/flexible semantics.
+- `tasks` — logical work definitions: title, duration, category, priority and fixed/flexible semantics.
 - `task_constraints` — deadline, daily admissible window, energy preference and split policy.
 - `routines` — recurrence templates.
-- `calendar_events` — external or manually fixed time blocks.
-- `planned_segments` — actual placements produced for a task or routine.
+- `routine_exceptions` — per-date skips or overrides for a routine.
+- `calendar_events` — manually fixed or external time blocks.
+- `planned_segments` — concrete placements for tasks or routines.
 
-A long flexible task may therefore have one `tasks` row and several `planned_segments` rows.
+A long flexible task therefore remains one `tasks` row even when it is represented by several `planned_segments` rows.
 
-## Why constraints are separate
+## Runtime source of truth
 
-The scheduling engine consumes constraints but does not need to know how they are persisted. Keeping them separate from the task record also leaves room for richer constraint sets later without bloating every task row.
+Authenticated planner startup reads the normalized Supabase model and reconciles it with the user-scoped local cache. The local cache supports local-first continuity; it is not a second shared cloud model.
 
-## Transitional snapshot
+Planner writes are projected to the normalized tables. Existing rows are upserted first and only stale task segments or manual calendar rows are deleted afterward.
 
-`planner_snapshots` is intentionally temporary.
+## Constraints
 
-The current prototype stores a flat `PlannerEvent[]`. The snapshot table gives that prototype atomic cloud persistence while the CRUD surfaces for projects/tasks/routines are introduced. It should not become the final source of truth.
+The scheduling engine consumes constraints without depending on their persistence format. Keeping `task_constraints` separate from `tasks` leaves room for richer planning rules without bloating every logical task row.
 
-Migration path:
+## Legacy snapshot table
 
-1. current UI reads/writes the snapshot;
-2. normalized CRUD screens are added;
-3. calendar projection is assembled from `calendar_events + planned_segments + tasks`;
-4. snapshot reads are removed;
-5. snapshot table can eventually be dropped in a dedicated migration.
+`planner_snapshots` is no longer read, written or surfaced by Horizon at runtime.
+
+One historical row is currently retained in the database solely as a short-lived rollback/audit artifact from the former flat `PlannerEvent[]` bridge. It is not part of the admin product metrics or the current synchronization path. The table should only be dropped through a dedicated migration after the rollback window has intentionally ended.
+
+Historical migrations still mention the table because migrations are immutable records of how the schema evolved.
 
 ## Security
 
-Every user-owned table has RLS enabled.
+Every user-owned table has Row Level Security enabled.
 
-Policies only allow a signed-in user to read or mutate rows whose `user_id` equals `auth.uid()`. `profiles` uses the profile primary key itself as the ownership key.
+Policies only allow a signed-in user to read or mutate rows whose ownership key matches `auth.uid()`. `profiles` uses the profile primary key itself as the ownership key.
 
-No service-role key belongs in the browser.
+No service-role key belongs in the browser. Privileged administrative operations run only in the authenticated `admin-api` Edge Function.

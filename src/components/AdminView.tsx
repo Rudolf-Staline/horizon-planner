@@ -485,7 +485,6 @@ export function AdminView() {
           <div><span>Routines</span><strong>{stats?.routines ?? '—'}</strong></div>
           <div><span>Événements</span><strong>{stats?.calendarEvents ?? '—'}</strong></div>
           <div><span>Segments</span><strong>{stats?.plannedSegments ?? '—'}</strong></div>
-          <div><span>Snapshots hérités</span><strong>{stats?.snapshots ?? '—'}</strong></div>
         </div>
       </section>
 

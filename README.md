@@ -59,7 +59,7 @@ npm test
 - `src/utils/` — time calculations
 - `docs/` — product/engine contracts that should remain independent from UI implementation
 
-The state layer is intentionally isolated so it can later be replaced by Supabase + TanStack Query without rewriting the calendar UI.
+The state layer is intentionally isolated from the UI. Authenticated cloud persistence already uses the normalized Supabase model, while the browser keeps a user-scoped local cache for local-first continuity.
 
 ## Planning principle
 
@@ -95,9 +95,9 @@ The schema is versioned in `supabase/migrations/` and Row Level Security is enab
 
 ### Normalized planner persistence
 
-The planner now mirrors authenticated schedule state into the normalized Supabase domain:
+Authenticated planner state is persisted in the normalized Supabase domain:
 `tasks`, `task_constraints`, `planned_segments`, and `calendar_events`.
-The legacy `planner_snapshots` row remains temporarily as a rollback/migration bridge.
+The historical `planner_snapshots` table is not part of runtime synchronization; its remaining backup row is retained temporarily only for rollback/audit.
 
 
 ### Projects and routines
@@ -218,3 +218,8 @@ Local planner persistence is now isolated behind a tested storage contract. Cach
 ### Tested normalized persistence mapping
 
 Projection from planner events to Supabase rows is now a pure tested layer. Multi-segment work produces one logical task row plus multiple planned segments, flexible constraints are written once per task, completion timestamps are preserved, fixed tasks are identified for constraint cleanup, manual calendar events stay separate, and virtual routine occurrences are never persisted as manual planner data.
+
+
+### Legacy snapshot isolation
+
+The former `planner_snapshots` bridge has no runtime module, no admin metric and no synchronization path. Its single historical database row is retained only as a temporary rollback/audit artifact until the stability window is deliberately closed.

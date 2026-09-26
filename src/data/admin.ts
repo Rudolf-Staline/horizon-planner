@@ -21,7 +21,6 @@ export type AdminStats = {
   routines: number
   calendarEvents: number
   plannedSegments: number
-  snapshots: number
 }
 
 export type AdminUserOverview = {
