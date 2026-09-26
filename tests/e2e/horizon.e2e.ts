@@ -4,7 +4,7 @@ import {
 } from '@playwright/test'
 
 test(
-  'public entry keeps planning locked without cloud configuration',
+  'public entry keeps the planner locked for anonymous visitors',
   async ({ page }) => {
     await page.goto('/')
 
@@ -16,8 +16,21 @@ test(
     ).toBeVisible()
 
     await expect(
-      page.getByText(
-        /connexion cloud n’est pas configurée/i,
+      page.getByLabel(
+        'Adresse e-mail',
+      ),
+    ).toBeVisible()
+
+    await expect(
+      page.getByLabel(
+        'Mot de passe',
+      ),
+    ).toBeVisible()
+
+    await expect(
+      page.getByRole(
+        'button',
+        { name: /se connecter/i },
       ),
     ).toBeVisible()
 
