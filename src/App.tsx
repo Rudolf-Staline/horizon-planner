@@ -15,6 +15,7 @@ import { NowView } from './components/NowView'
 import { QuickCreate } from './components/QuickCreate'
 import { Sidebar, type Section } from './components/Sidebar'
 import { TasksView } from './components/TasksView'
+import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { usePlanner } from './state/planner'
 import type { PlannerEvent } from './domain/types'
 import { toISODate } from './utils/date'
@@ -228,9 +229,9 @@ export default function App() {
         {section === 'tasks' && (
           <TasksView
             events={planner.events}
-            onToggle={
-              planner.toggleCompleted
-            }
+            onToggle={planner.toggleCompleted}
+            onSelect={planner.setSelectedId}
+            onCreate={() => setCommandOpen(true)}
           />
         )}
 
@@ -321,6 +322,16 @@ export default function App() {
             setQuick(null)
           }
           onCreate={create}
+        />
+      )}
+
+      {planner.selected && (
+        <TaskDetailPanel
+          event={planner.selected}
+          onClose={() => planner.setSelectedId(null)}
+          onChange={planner.editEvent}
+          onDelete={planner.deleteEvent}
+          onToggleCompleted={planner.toggleCompleted}
         />
       )}
 

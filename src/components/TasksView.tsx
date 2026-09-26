@@ -10,9 +10,16 @@ type FilterMode = 'open' | 'all' | 'completed'
 interface Props {
   events: PlannerEvent[]
   onToggle: (id: string) => void
+  onSelect: (id: string) => void
+  onCreate: () => void
 }
 
-export function TasksView({ events, onToggle }: Props) {
+export function TasksView({
+  events,
+  onToggle,
+  onSelect,
+  onCreate,
+}: Props) {
   const [filter, setFilter] = useState<FilterMode>('open')
   const [query, setQuery] = useState('')
 
@@ -49,13 +56,21 @@ export function TasksView({ events, onToggle }: Props) {
           <p>{openCount} éléments encore ouverts cette semaine.</p>
         </div>
 
-        <div className="tasks-search">
+        <div className="tasks-header-actions">
+          <button
+            className="btn primary"
+            onClick={onCreate}
+          >
+            Nouvelle tâche
+          </button>
+          <div className="tasks-search">
           <Search size={17}/>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Rechercher…"
           />
+          </div>
         </div>
       </header>
 
@@ -87,10 +102,14 @@ export function TasksView({ events, onToggle }: Props) {
           <article
             key={event.id}
             className={`task-row ${event.completed ? 'completed' : ''}`}
+            onClick={() => onSelect(event.id)}
           >
             <button
               className="task-check"
-              onClick={() => onToggle(event.id)}
+              onClick={(clickEvent) => {
+                clickEvent.stopPropagation()
+                onToggle(event.id)
+              }}
               aria-label={
                 event.completed
                   ? 'Marquer comme non terminée'

@@ -372,6 +372,21 @@ export function usePlanner() {
     )
   }
 
+  const editEvent = (
+    id: string,
+    patch: Partial<PlannerEvent>,
+  ) => {
+    const current = events.find((event) => event.id === id)
+    if (!current) return
+
+    const next = events.map((event) =>
+      event.id === id ? { ...event, ...patch } : event
+    )
+
+    commit(next)
+    setLastConflictId(null)
+  }
+
   const createEvents = (created: PlannerEvent[]) => {
     if (created.length === 0) return
 
@@ -400,9 +415,6 @@ export function usePlanner() {
   }
 
   const deleteEvent = (id: string) => {
-    const target = events.find((event) => event.id === id)
-    if (target?.locked) return
-
     commit(events.filter((event) => event.id !== id))
     setSelectedId((current) => current === id ? null : current)
     setLastConflictId((current) => current === id ? null : current)
@@ -445,6 +457,7 @@ export function usePlanner() {
     selected,
     setSelectedId,
     updateEvent,
+    editEvent,
     createEvent,
     createEvents,
     toggleCompleted,
