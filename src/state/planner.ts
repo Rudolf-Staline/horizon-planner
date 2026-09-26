@@ -609,6 +609,8 @@ export function usePlanner() {
       events,
       cloudPreferences.workdayStartMin,
       cloudPreferences.workdayEndMin,
+      cloudPreferences.activeDays,
+      cloudPreferences.bufferMin,
       cloudPreferences.planningStepMin,
     ],
   )
