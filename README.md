@@ -141,3 +141,8 @@ Administrators can inspect application-level counts and recent task/project reco
 ### Confirmation email resend
 
 The signup flow uses a neutral confirmation message and offers an explicit resend action when email verification is pending. Existing confirmed accounts are directed toward normal sign-in or password recovery rather than being told that a new account was certainly created.
+
+
+### Deterministic dependency graph
+
+Top-level npm dependencies are pinned to exact validated versions and the full transitive graph is committed in `package-lock.json`. CI installs exclusively with `npm ci`, so a third-party package release cannot silently change a Horizon build.
