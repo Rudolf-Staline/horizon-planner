@@ -1,4 +1,4 @@
-import { Bell, Cloud, Search, Sun } from 'lucide-react'
+import { Cloud, Search } from 'lucide-react'
 import type { CloudStatus } from '../state/planner'
 import type { CalendarMode } from './CalendarView'
 
@@ -65,6 +65,17 @@ export function Header({
         <kbd>⌘K</kbd>
       </button>
 
+      <div className="mobile-header-start">
+        <strong>Horizon</strong>
+        <button
+          className="mobile-command"
+          onClick={onCommand}
+          aria-label="Planifier ou rechercher"
+        >
+          <Search size={18}/>
+        </button>
+      </div>
+
       <button
         className={
           `icon-button sync-indicator sync-${cloudStatus}`
@@ -82,15 +93,6 @@ export function Header({
       >
         <Cloud size={19}/>
         <span className="sync-dot"/>
-      </button>
-
-      <button className="icon-button">
-        <Sun size={20}/>
-      </button>
-
-      <button className="icon-button">
-        <Bell size={20}/>
-        <span className="notif-dot"/>
       </button>
 
       <button

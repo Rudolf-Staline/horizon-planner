@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import {
   END_MIN,
@@ -77,6 +78,24 @@ export function CalendarView({
     (_, index) => 7 + index,
   )
   const height = (END_MIN - START_MIN) * PX_PER_MIN
+  const [viewportWidth, setViewportWidth] =
+    useState(() => window.innerWidth)
+
+  useEffect(() => {
+    const updateViewport = () =>
+      setViewportWidth(window.innerWidth)
+
+    window.addEventListener(
+      'resize',
+      updateViewport,
+    )
+
+    return () =>
+      window.removeEventListener(
+        'resize',
+        updateViewport,
+      )
+  }, [])
 
   const navigate = (direction: -1 | 1) => {
     const next =
@@ -107,7 +126,15 @@ export function CalendarView({
         : weekDates(anchor)
 
     const columnWidth =
-      mode === 'day' ? 760 : 154
+      mode === 'day'
+        ? Math.max(
+            280,
+            Math.min(
+              760,
+              viewportWidth - 94,
+            ),
+          )
+        : 154
     const gridWidth = columnWidth * dates.length
 
     const visibleEvents = dates.flatMap(
@@ -175,6 +202,33 @@ export function CalendarView({
                 style={{
                   left: visibleDay * columnWidth,
                   width: columnWidth,
+                }}
+                onPointerUp={(event) => {
+                  if (
+                    event.pointerType !==
+                    'touch'
+                  ) {
+                    return
+                  }
+
+                  const rect =
+                    event.currentTarget.getBoundingClientRect()
+                  const y =
+                    event.clientY - rect.top
+                  const startMin = clamp(
+                    snapMinutes(
+                      START_MIN +
+                        y / PX_PER_MIN,
+                    ),
+                    START_MIN,
+                    END_MIN - 30,
+                  )
+
+                  onEmptyClick(
+                    toISODate(date),
+                    weekdayIndex(date),
+                    startMin,
+                  )
                 }}
                 onDoubleClick={(event) => {
                   const rect =
@@ -271,8 +325,9 @@ export function CalendarView({
           <span><i className="dot neutral"/>Autre</span>
         </div>
         <p className="hint">
-          Double-clique un créneau pour créer. Glisse une carte pour la
-          déplacer. Tire sa poignée basse pour changer la durée.
+          Double-clique un créneau, ou touche-le sur mobile, pour créer.
+          Glisse une carte pour la déplacer. Tire sa poignée basse pour
+          changer la durée.
         </p>
       </>
     )

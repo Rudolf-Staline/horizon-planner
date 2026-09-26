@@ -62,7 +62,13 @@ export function Sidebar({
     </button>
   )
 
+  const mobileItems = [
+    ...mainItems,
+    ...secondaryItems,
+  ] as const
+
   return (
+    <>
     <aside className="sidebar">
       <div className="brand">Horizon</div>
 
@@ -99,5 +105,50 @@ export function Sidebar({
         </div>
       </div>
     </aside>
+
+    <nav
+      className="mobile-nav"
+      aria-label="Navigation principale"
+    >
+      {mobileItems.map(
+        ([value, label, Icon]) => (
+          <button
+            key={value}
+            className={
+              active === value
+                ? 'mobile-nav-item active'
+                : 'mobile-nav-item'
+            }
+            onClick={() =>
+              onNavigate(value)}
+          >
+            <Icon
+              size={19}
+              strokeWidth={2}
+            />
+            <span>{label}</span>
+          </button>
+        ),
+      )}
+
+      {isAdmin && (
+        <button
+          className={
+            active === 'admin'
+              ? 'mobile-nav-item active'
+              : 'mobile-nav-item'
+          }
+          onClick={() =>
+            onNavigate('admin')}
+        >
+          <ShieldCheck
+            size={19}
+            strokeWidth={2}
+          />
+          <span>Admin</span>
+        </button>
+      )}
+    </nav>
+    </>
   )
 }

@@ -146,3 +146,8 @@ The signup flow uses a neutral confirmation message and offers an explicit resen
 ### Deterministic dependency graph
 
 Top-level npm dependencies are pinned to exact validated versions and the full transitive graph is committed in `package-lock.json`. CI installs exclusively with `npm ci`, so a third-party package release cannot silently change a Horizon build.
+
+
+### Mobile navigation and touch scheduling
+
+Small screens now keep all primary product sections reachable through a persistent bottom navigation. The day calendar adapts its column width to the viewport, empty time slots can be created with a touch, touch resize handles stay discoverable, and non-functional header placeholders were removed.
