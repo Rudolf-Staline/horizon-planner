@@ -465,6 +465,7 @@ export default function App() {
               workdayStartMin={planner.cloudPreferences.workdayStartMin}
               workdayEndMin={planner.cloudPreferences.workdayEndMin}
               planningStepMin={planner.cloudPreferences.planningStepMin}
+              timeZone={planner.cloudPreferences.timezone}
             />
           )}
 

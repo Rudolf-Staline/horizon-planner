@@ -41,7 +41,8 @@ export type AuthStatus =
 
 type Snapshot = PlannerEvent[]
 
-import { migrateLegacyEventDates } from '../utils/date'
+import { fromISODate, migrateLegacyEventDates } from '../utils/date'
+import { zonedDateToIso } from '../utils/timezone'
 import {
   isCalendarEntity,
   isReadOnlyCalendarEvent,
@@ -370,8 +371,12 @@ export function usePlanner() {
         let nextModifiedAt = choice.modifiedAt
         let shouldPush = choice.shouldPush
 
-        const dateMigration =
-          migrateLegacyEventDates(nextEvents)
+        const dateMigration = migrateLegacyEventDates(
+          nextEvents,
+          fromISODate(
+            zonedDateToIso(new Date(), timeZone),
+          ),
+        )
         if (dateMigration.changed) {
           nextEvents =
             dateMigration.events

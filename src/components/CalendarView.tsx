@@ -28,6 +28,7 @@ import { EventCard } from './EventCard'
 import { InlineQuickCreate } from './InlineQuickCreate'
 import type { InlineTaskDraft } from '../domain/quickCreate'
 import { DEFAULT_PLANNER_PREFERENCES } from '../domain/preferences'
+import { zonedDateToIso } from '../utils/timezone'
 
 export type CalendarMode = 'day' | 'week' | 'month' | 'year'
 
@@ -55,6 +56,7 @@ interface Props {
   workdayStartMin?: number
   workdayEndMin?: number
   planningStepMin?: number
+  timeZone?: string
 }
 
 function eventsOnDate(
@@ -84,9 +86,11 @@ export function CalendarView({
   workdayStartMin = DEFAULT_PLANNER_PREFERENCES.workdayStartMin,
   workdayEndMin = DEFAULT_PLANNER_PREFERENCES.workdayEndMin,
   planningStepMin = DEFAULT_PLANNER_PREFERENCES.planningStepMin,
+  timeZone = DEFAULT_PLANNER_PREFERENCES.timezone,
 }: Props) {
   const anchor = fromISODate(anchorDate)
-  const today = new Date()
+  const todayIso = zonedDateToIso(new Date(), timeZone)
+  const today = fromISODate(todayIso)
   const firstHour = Math.floor(workdayStartMin / 60)
   const lastHour = Math.ceil(workdayEndMin / 60)
   const hours = Array.from(
@@ -559,7 +563,7 @@ export function CalendarView({
         <div className="view-switch">
           <button
             onClick={() =>
-              onAnchorDate(toISODate(new Date()))
+              onAnchorDate(todayIso)
             }
           >
             Aujourd’hui
