@@ -3,6 +3,7 @@ import { GripHorizontal, Lock, Move } from 'lucide-react'
 import { PX_PER_MIN, SNAP_MINUTES, START_MIN } from '../domain/constants'
 import type { PlannerEvent } from '../domain/types'
 import { clamp, formatTime, snapMinutes } from '../utils/time'
+import { edgeScrollDelta } from '../utils/pointer'
 
 interface Props {
   event: PlannerEvent
@@ -22,6 +23,8 @@ type Gesture = {
   originalDay: number
   originalStart: number
   originalDuration: number
+  originalScrollTop: number
+  originalScrollLeft: number
 }
 
 export function EventCard({
@@ -53,6 +56,12 @@ export function EventCard({
       e.pointerId,
     )
 
+    const scrollContainer =
+      (e.currentTarget as HTMLElement)
+        .closest(
+          '.calendar-shell',
+        ) as HTMLElement | null
+
     gesture.current = {
       mode,
       startX: e.clientX,
@@ -60,6 +69,10 @@ export function EventCard({
       originalDay: event.day,
       originalStart: event.startMin,
       originalDuration: event.durationMin,
+      originalScrollTop:
+        scrollContainer?.scrollTop ?? 0,
+      originalScrollLeft:
+        scrollContainer?.scrollLeft ?? 0,
     }
     setDragging(true)
   }
@@ -68,9 +81,61 @@ export function EventCard({
     const g = gesture.current
     if (!g) return
 
-    const dy = e.clientY - g.startY
-    const dx = e.clientX - g.startX
-    const deltaMin = snapMinutes(dy / PX_PER_MIN)
+    const scrollContainer =
+      (e.currentTarget as HTMLElement)
+        .closest(
+          '.calendar-shell',
+        ) as HTMLElement | null
+
+    if (scrollContainer) {
+      const rect =
+        scrollContainer.getBoundingClientRect()
+
+      const scrollY =
+        edgeScrollDelta(
+          e.clientY,
+          rect.top,
+          rect.bottom,
+        )
+      const scrollX =
+        edgeScrollDelta(
+          e.clientX,
+          rect.left,
+          rect.right,
+          56,
+          18,
+        )
+
+      if (scrollY !== 0) {
+        scrollContainer.scrollTop +=
+          scrollY
+      }
+
+      if (scrollX !== 0) {
+        scrollContainer.scrollLeft +=
+          scrollX
+      }
+    }
+
+    const scrollDy =
+      (scrollContainer?.scrollTop ?? 0) -
+      g.originalScrollTop
+    const scrollDx =
+      (scrollContainer?.scrollLeft ?? 0) -
+      g.originalScrollLeft
+
+    const dy =
+      e.clientY -
+      g.startY +
+      scrollDy
+    const dx =
+      e.clientX -
+      g.startX +
+      scrollDx
+    const deltaMin =
+      snapMinutes(
+        dy / PX_PER_MIN,
+      )
 
     if (g.mode === 'resize') {
       const durationMin = clamp(

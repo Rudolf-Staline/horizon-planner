@@ -75,7 +75,7 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Add drag auto-scroll and broaden pointer interaction tests
+1. Broaden pointer interaction and integration tests
 2. Broaden integration coverage for authentication, persistence, and replanning
 3. Retire the legacy snapshot table after a stability window
 
@@ -174,3 +174,8 @@ The task detail panel now edits the same constraints consumed by the planner: co
 ### Calendar overlap lanes
 
 Overlapping events on the same date are assigned deterministic visual lanes. Connected overlap groups share the minimum number of lanes required, while non-overlapping events keep the full day-column width.
+
+
+### Drag edge auto-scroll
+
+Calendar drag gestures now account for the calendar container scroll offset. Moving a captured card near a vertical or horizontal viewport edge scrolls the grid progressively while preserving 15-minute and day-column gesture calculations.
