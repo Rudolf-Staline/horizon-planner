@@ -73,47 +73,53 @@ function nextWeekday(
 
 function inferCategory(text: string): Category {
   if (
-    /cour|td|tp|revision|reviser|math|stat|probab|edp|examen/.test(
-      text,
-    )
-  ) {
-    return 'course'
-  }
-  if (
-    /sport|courir|running|gym|muscu|entrainement/.test(
+    /\b(?:sport|courir|running|gym|entrainement)\b|\bmuscu\w*/.test(
       text,
     )
   ) {
     return 'routine'
   }
+
   if (
-    /rapport|projet|code|coder|dev|app|application/.test(
+    /\b(?:cours?|td|tp|revision|reviser|edp|examen)\b|\bmath\w*|\bstat\w*|\bprobab\w*/.test(
+      text,
+    )
+  ) {
+    return 'course'
+  }
+
+  if (
+    /\b(?:rapport|projet|code|coder|dev|application)\b|\bapp\b/.test(
       text,
     )
   ) {
     return 'project'
   }
+
   if (
-    /mail|email|admin|dossier|document/.test(
+    /\b(?:mail|email|admin|dossier|document)\b/.test(
       text,
     )
   ) {
     return 'admin'
   }
+
   if (
-    /lire|lecture|focus|travailler/.test(
+    /\b(?:lire|lecture|focus|travailler)\b/.test(
       text,
     )
   ) {
     return 'focus'
   }
+
   if (
-    /appeler|ami|mere|pere|famille|sortie/.test(
+    /\b(?:appeler|ami|mere|pere|famille|sortie)\b/.test(
       text,
     )
   ) {
     return 'personal'
   }
+
   return 'neutral'
 }
 

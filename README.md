@@ -184,3 +184,8 @@ Calendar drag gestures now account for the calendar container scroll offset. Mov
 ### Planner flow integration tests
 
 Domain-level integration tests now cover complete planning flows: natural-language parsing on a Sunday, scheduling across a week boundary, multi-day splitting under narrow daily windows, fixed-appointment exclusion, and the separation between semantic category and flexible scheduling behavior.
+
+
+### Lexical category boundaries
+
+Natural-language category inference now uses explicit word boundaries so short tokens such as `app` and `cours` do not accidentally classify unrelated verbs such as `appeler` or `courir`.

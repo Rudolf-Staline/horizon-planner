@@ -149,4 +149,16 @@ describe('planner domain flow', () => {
     expect(parsed!.kind).toBe('flexible')
     expect(parsed!.category).toBe('personal')
   })
+
+  it('does not confuse running with courses', () => {
+    const parsed = parseQuickTask(
+      'Demain courir 45 min',
+      '2026-09-27',
+      18 * 60,
+    )
+
+    expect(parsed).not.toBeNull()
+    expect(parsed!.category).toBe('routine')
+    expect(parsed!.kind).toBe('flexible')
+  })
 })
