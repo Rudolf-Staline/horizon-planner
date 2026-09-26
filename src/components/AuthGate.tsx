@@ -9,6 +9,7 @@ import {
 import type { AuthStatus } from '../state/planner'
 import {
   requestPasswordReset,
+  resendSignupConfirmation,
   signInWithPassword,
   signUpWithPassword,
   updatePassword,
@@ -48,6 +49,10 @@ export function AuthGate({ status }: Props) {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [
+    confirmationPendingEmail,
+    setConfirmationPendingEmail,
+  ] = useState<string | null>(null)
 
   if (status === 'loading') {
     return (
@@ -66,6 +71,7 @@ export function AuthGate({ status }: Props) {
 
   const changeMode = (next: Mode) => {
     resetMessages()
+    setConfirmationPendingEmail(null)
     setMode(next)
   }
 
@@ -118,12 +124,54 @@ export function AuthGate({ status }: Props) {
       })
 
       if (result.requiresEmailConfirmation) {
+        setConfirmationPendingEmail(
+          normalizedEmail,
+        )
         setNotice(
-          'Compte créé. Consultez votre messagerie afin de confirmer votre adresse e-mail.',
+          'Si cette adresse nécessite encore une confirmation, Horizon vient d’envoyer le courriel correspondant. Vérifiez également les indésirables. Si le compte existe déjà, utilisez plutôt Connexion ou Mot de passe oublié.',
         )
       }
     } catch (cause) {
       setError(messageFromError(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const resendConfirmation = async () => {
+    if (
+      !confirmationPendingEmail ||
+      busy
+    ) {
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+
+    try {
+      await resendSignupConfirmation(
+        confirmationPendingEmail,
+      )
+      setNotice(
+        'Une nouvelle tentative d’envoi a été effectuée. Vérifiez votre boîte de réception et les indésirables.',
+      )
+    } catch (cause) {
+      const message =
+        cause instanceof Error
+          ? cause.message.toLowerCase()
+          : ''
+
+      if (
+        message.includes('already confirmed') ||
+        message.includes('already been registered')
+      ) {
+        setNotice(
+          'Cette adresse semble déjà correspondre à un compte confirmé. Utilisez Connexion ou Mot de passe oublié.',
+        )
+      } else {
+        setError(messageFromError(cause))
+      }
     } finally {
       setBusy(false)
     }
@@ -410,7 +458,20 @@ export function AuthGate({ status }: Props) {
 
         {notice && (
           <div className="auth-notice" role="status">
-            {notice}
+            <span>{notice}</span>
+            {confirmationPendingEmail &&
+              mode === 'signup' && (
+                <button
+                  type="button"
+                  className="auth-resend"
+                  disabled={busy}
+                  onClick={() =>
+                    void resendConfirmation()
+                  }
+                >
+                  Renvoyer le courriel de confirmation
+                </button>
+              )}
           </div>
         )}
 

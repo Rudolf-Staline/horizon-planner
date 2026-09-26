@@ -136,3 +136,8 @@ Planner persistence now upserts current tasks, segments, constraints and manual 
 ### Per-user admin data inspection
 
 Administrators can inspect application-level counts and recent task/project records for a selected user through the authenticated `admin-api` Edge Function. Authentication secrets and raw SQL remain outside the browser interface.
+
+
+### Confirmation email resend
+
+The signup flow uses a neutral confirmation message and offers an explicit resend action when email verification is pending. Existing confirmed accounts are directed toward normal sign-in or password recovery rather than being told that a new account was certainly created.
