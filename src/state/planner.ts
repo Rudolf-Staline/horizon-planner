@@ -21,6 +21,21 @@ import {
   serializeLocalPlannerEnvelope,
   type LocalPlannerEnvelope,
 } from './plannerStorage'
+
+export type CloudStatus =
+  | 'local'
+  | 'syncing'
+  | 'synced'
+  | 'error'
+
+export type AuthStatus =
+  | 'loading'
+  | 'anonymous'
+  | 'authenticated'
+  | 'recovery'
+
+type Snapshot = PlannerEvent[]
+
 import { migrateLegacyEventDates } from '../utils/date'
 import {
   isCalendarEntity,
