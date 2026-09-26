@@ -11,6 +11,7 @@ export type Category =
 export type Priority = 'low' | 'medium' | 'high'
 export type EventKind = 'fixed' | 'flexible'
 export type EnergyLevel = 'low' | 'medium' | 'high'
+export type PlannerEntityType = 'task' | 'calendar' | 'routine'
 
 export interface PlannerEvent {
   id: string
@@ -24,6 +25,16 @@ export interface PlannerEvent {
   startMin: number
   durationMin: number
   category: Category
+
+  /**
+   * Explicit persistence identity. Older snapshots may omit it and are
+   * migrated on load.
+   */
+  entityType?: PlannerEntityType
+  taskId?: string
+  segmentIndex?: number
+  segmentCount?: number
+
   projectId?: string
   routineId?: string
   virtual?: boolean

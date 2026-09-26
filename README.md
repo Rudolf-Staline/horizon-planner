@@ -74,8 +74,8 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Persist richer multi-segment task semantics
-2. Add direct routine editing and exception dates
+1. Add routine exception dates and per-occurrence overrides
+2. Improve multi-segment editing UX and task-level progress
 3. Improve mobile day-first interaction and calendar accessibility
 4. Add richer task detail/editing and normalized project membership
 5. Broaden state-history, pointer and integration tests
@@ -110,3 +110,8 @@ Projects and routines are now first-class Supabase entities. Tasks can be assign
 ### Task inbox
 
 Tasks can now exist without an immediate calendar placement. The Tasks screen has a real inbox backed by `tasks.status = 'open'`; a task can later be scheduled into the calendar while preserving project, priority, duration, and deadline metadata.
+
+
+### Multi-segment task identity
+
+A logical task now has an explicit `taskId`, while each calendar placement keeps its own segment `id` and `segmentIndex`. Multiple scheduled blocks therefore persist as one row in `tasks` plus multiple rows in `planned_segments`, instead of being duplicated into separate tasks.

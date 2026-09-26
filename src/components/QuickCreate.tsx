@@ -79,8 +79,13 @@ export function QuickCreate({
     [title],
   )
 
-  const makeDraft = (): PlannerEvent => ({
-    id: crypto.randomUUID(),
+  const makeDraft = (): PlannerEvent => {
+    const id = crypto.randomUUID()
+
+    return {
+    id,
+    entityType: 'task',
+    taskId: id,
     title: title.trim(),
     date,
     day,
@@ -113,7 +118,10 @@ export function QuickCreate({
       kind === 'flexible' && splittable
         ? minChunkMin
         : undefined,
-  })
+    segmentIndex: 0,
+    segmentCount: 1,
+  }
+  }
 
   const createHere = () => {
     if (!canCreate) return
@@ -146,11 +154,14 @@ export function QuickCreate({
     const created = plan.placements.map(
       (placement, index) => ({
         ...draft,
-        id: crypto.randomUUID(),
-        title:
-          plan.kind === 'split'
-            ? `${draft.title} · ${index + 1}/${plan.placements.length}`
-            : draft.title,
+        id:
+          plan.kind === 'single'
+            ? draft.id
+            : crypto.randomUUID(),
+        taskId: draft.taskId ?? draft.id,
+        segmentIndex: index,
+        segmentCount: plan.placements.length,
+        title: draft.title,
         date:
           placement.date ??
           dateForWeekday(

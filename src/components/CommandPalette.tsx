@@ -86,8 +86,13 @@ export function CommandPalette({
   const create = () => {
     if (!parsed) return
 
+    const taskId = crypto.randomUUID()
     const draft: PlannerEvent = {
-      id: crypto.randomUUID(),
+      id: taskId,
+      entityType: 'task',
+      taskId,
+      segmentIndex: 0,
+      segmentCount: 1,
       ...parsed,
       date: dateForWeekday(
         contextDate,
@@ -114,11 +119,15 @@ export function CommandPalette({
       resolved.placements.map(
         (placement, index) => ({
           ...draft,
-          id: crypto.randomUUID(),
-          title:
-            resolved.kind === 'split'
-              ? `${draft.title} · ${index + 1}/${resolved.placements.length}`
-              : draft.title,
+          id:
+            resolved.kind === 'single'
+              ? draft.id
+              : crypto.randomUUID(),
+          taskId,
+          segmentIndex: index,
+          segmentCount:
+            resolved.placements.length,
+          title: draft.title,
           date:
             placement.date ??
             dateForWeekday(

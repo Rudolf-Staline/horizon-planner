@@ -17,6 +17,10 @@ import {
   syncNormalizedPlanner,
 } from '../data/normalizedPlanner'
 import { migrateLegacyEventDates } from '../utils/date'
+import {
+  isCalendarEntity,
+  logicalTaskId,
+} from '../domain/taskIdentity'
 
 const LEGACY_STORAGE_KEY = 'horizon-planner-v1'
 const STORAGE_PREFIX = 'horizon-planner-v2'
@@ -115,6 +119,88 @@ function migrateLegacyEventIds(
     events: migrated,
     changed,
   }
+}
+
+
+function migratePlannerIdentity(
+  events: PlannerEvent[],
+) {
+  let changed = false
+
+  const migrated = events.map((event) => {
+    if (event.virtual) {
+      if (event.entityType === 'routine') return event
+
+      changed = true
+      return {
+        ...event,
+        entityType: 'routine' as const,
+      }
+    }
+
+    if (event.entityType === 'calendar') {
+      return event
+    }
+
+    if (
+      event.entityType === 'task' &&
+      event.taskId
+    ) {
+      return event
+    }
+
+    if (isCalendarEntity(event)) {
+      changed = true
+      return {
+        ...event,
+        entityType: 'calendar' as const,
+      }
+    }
+
+    changed = true
+    return {
+      ...event,
+      entityType: 'task' as const,
+      taskId: event.taskId ?? event.id,
+      segmentIndex:
+        event.segmentIndex ?? 0,
+      segmentCount:
+        event.segmentCount ?? 1,
+    }
+  })
+
+  return { events: migrated, changed }
+}
+
+const TASK_METADATA_KEYS = [
+  'title',
+  'category',
+  'projectId',
+  'priority',
+  'kind',
+  'locked',
+  'deadlineDay',
+  'deadlineDate',
+  'windowStartMin',
+  'windowEndMin',
+  'energy',
+  'splittable',
+  'minChunkMin',
+] as const
+
+function taskMetadataPatch(
+  patch: Partial<PlannerEvent>,
+) {
+  const metadata: Partial<PlannerEvent> = {}
+
+  for (const key of TASK_METADATA_KEYS) {
+    if (key in patch) {
+      ;(metadata as Record<string, unknown>)[key] =
+        patch[key]
+    }
+  }
+
+  return metadata
 }
 
 function isRecoveryUrl() {
@@ -292,6 +378,15 @@ export function usePlanner() {
           shouldPush = true
         }
 
+        const identityMigration =
+          migratePlannerIdentity(nextEvents)
+        if (identityMigration.changed) {
+          nextEvents =
+            identityMigration.events
+          nextModifiedAt = Date.now()
+          shouldPush = true
+        }
+
         modifiedAtRef.current = nextModifiedAt
         eventsRef.current = nextEvents
         persistLocal(user.id, nextEvents, nextModifiedAt)
@@ -458,9 +553,27 @@ export function usePlanner() {
     const current = events.find((event) => event.id === id)
     if (!current) return
 
-    const next = events.map((event) =>
-      event.id === id ? { ...event, ...patch } : event
-    )
+    const metadata = taskMetadataPatch(patch)
+    const currentTaskId =
+      current.entityType === 'task'
+        ? logicalTaskId(current)
+        : null
+
+    const next = events.map((event) => {
+      if (event.id === id) {
+        return { ...event, ...patch }
+      }
+
+      if (
+        currentTaskId &&
+        event.entityType === 'task' &&
+        logicalTaskId(event) === currentTaskId
+      ) {
+        return { ...event, ...metadata }
+      }
+
+      return event
+    })
 
     commit(next)
     setLastConflictId(null)
@@ -469,10 +582,48 @@ export function usePlanner() {
   const createEvents = (created: PlannerEvent[]) => {
     if (created.length === 0) return
 
-    const next = [...events, ...created]
+    const taskId =
+      created.length > 1
+        ? (
+            created[0].taskId ??
+            crypto.randomUUID()
+          )
+        : (
+            created[0].taskId ??
+            created[0].id
+          )
+
+    const normalizedCreated =
+      created.map((event, index) => {
+        if (event.virtual) return event
+
+        if (
+          event.entityType === 'calendar' ||
+          isCalendarEntity(event)
+        ) {
+          return {
+            ...event,
+            entityType: 'calendar' as const,
+          }
+        }
+
+        return {
+          ...event,
+          entityType: 'task' as const,
+          taskId:
+            event.taskId ?? taskId,
+          segmentIndex:
+            event.segmentIndex ?? index,
+          segmentCount:
+            event.segmentCount ??
+            created.length,
+        }
+      })
+
+    const next = [...events, ...normalizedCreated]
     commit(next)
 
-    const conflicted = created.find(
+    const conflicted = normalizedCreated.find(
       (event) => conflictsFor(event, next).length > 0,
     )
 

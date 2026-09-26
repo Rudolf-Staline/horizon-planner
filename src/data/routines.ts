@@ -203,6 +203,7 @@ export function expandRoutines(
       events.push({
         id:
           `routine:${routine.id}:${date}`,
+        entityType: 'routine',
         title: routine.title,
         date,
         day,
