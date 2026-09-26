@@ -194,3 +194,8 @@ Natural-language category inference now uses explicit word boundaries so short t
 ### Tested task mutations
 
 Logical task completion and deletion are now pure domain operations rather than hook-local array manipulation. Tests cover completing/reopening every segment, deleting one segment with deterministic reindexing, deleting an entire logical task, preserving unrelated tasks, and missing-target no-ops.
+
+
+### Conservative adaptive replanning
+
+Conflict suggestions now distinguish movable flexible work from fixed commitments. A conflicting flexible task can be proposed for relocation while a fixed event stays in place. Fixed/fixed conflicts and ambiguous cases with several movable conflicts deliberately produce no automatic choice; the user keeps final control through an explicit Apply action.

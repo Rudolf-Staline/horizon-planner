@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
-import { conflictsFor, findNextAvailableSlot } from '../domain/scheduling'
+import { conflictsFor } from '../domain/scheduling'
+import { proposeConflictReplan } from '../domain/replanning'
 import { currentCloudUser } from '../data/auth'
 import {
   loadOwnProfile,
@@ -525,7 +526,10 @@ export function usePlanner() {
   const suggestion = useMemo(
     () =>
       conflictEvent
-        ? findNextAvailableSlot(conflictEvent, events)
+        ? proposeConflictReplan(
+            conflictEvent,
+            events,
+          )
         : null,
     [conflictEvent, events],
   )
@@ -755,13 +759,34 @@ export function usePlanner() {
   const acceptSuggestion = () => {
     if (
       !conflictEvent ||
-      !suggestion ||
-      conflictEvent.locked
+      !suggestion
     ) {
       return
     }
 
-    updateEvent(conflictEvent.id, suggestion)
+    const target = events.find(
+      (event) =>
+        event.id ===
+        suggestion.eventId,
+    )
+
+    if (
+      !target ||
+      target.locked ||
+      target.kind !== 'flexible'
+    ) {
+      return
+    }
+
+    updateEvent(
+      target.id,
+      {
+        date: suggestion.date,
+        day: suggestion.day,
+        startMin:
+          suggestion.startMin,
+      },
+    )
     setLastConflictId(null)
   }
 
