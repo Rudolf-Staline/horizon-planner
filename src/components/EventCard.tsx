@@ -44,6 +44,8 @@ export function EventCard({
     useState<Partial<PlannerEvent> | null>(null)
   const [dragging, setDragging] = useState(false)
   const gesture = useRef<Gesture | null>(null)
+  const gestureMoved = useRef(false)
+  const suppressClickUntil = useRef(0)
   const live = { ...event, ...(preview ?? {}) }
 
   const begin = (
@@ -51,7 +53,6 @@ export function EventCard({
     e: PointerEvent,
   ) => {
     e.stopPropagation()
-    onSelect()
 
     if (event.locked) return
 
@@ -65,6 +66,12 @@ export function EventCard({
           '.calendar-shell',
         ) as HTMLElement | null
 
+    gestureMoved.current = false
+    if (mode === 'resize') {
+      suppressClickUntil.current =
+        Number.POSITIVE_INFINITY
+    }
+
     gesture.current = {
       mode,
       startX: e.clientX,
@@ -77,12 +84,29 @@ export function EventCard({
       originalScrollLeft:
         scrollContainer?.scrollLeft ?? 0,
     }
-    setDragging(true)
   }
 
   const move = (e: PointerEvent) => {
     const g = gesture.current
     if (!g) return
+
+    const movedDistance =
+      Math.hypot(
+        e.clientX - g.startX,
+        e.clientY - g.startY,
+      )
+
+    if (
+      !gestureMoved.current &&
+      movedDistance < 5
+    ) {
+      return
+    }
+
+    if (!gestureMoved.current) {
+      gestureMoved.current = true
+      setDragging(true)
+    }
 
     const scrollContainer =
       (e.currentTarget as HTMLElement)
@@ -237,7 +261,17 @@ export function EventCard({
     } catch {}
 
     if (preview) onChange(preview)
+
+    if (
+      gestureMoved.current ||
+      gesture.current.mode === 'resize'
+    ) {
+      suppressClickUntil.current =
+        performance.now() + 300
+    }
+
     gesture.current = null
+    gestureMoved.current = false
     setPreview(null)
     setDragging(false)
   }
@@ -303,6 +337,14 @@ export function EventCard({
       onKeyDown={keyboard}
       onClick={(e) => {
         e.stopPropagation()
+
+        if (
+          performance.now() <
+          suppressClickUntil.current
+        ) {
+          return
+        }
+
         onSelect()
       }}
     >

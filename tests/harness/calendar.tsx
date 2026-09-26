@@ -83,9 +83,6 @@ function CalendarHarness() {
           created,
         ])
         setDraft(null)
-        setSelectedId(
-          created.id,
-        )
       }}
       onDraftCancel={() =>
         setDraft(null)}
