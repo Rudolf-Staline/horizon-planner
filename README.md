@@ -247,3 +247,8 @@ The Pause action now controls a real local execution timer instead of only chang
 ### Date-true weekly analytics
 
 The analytics screen now measures only the real current Monday-Sunday interval using each event's ISO date. It no longer relies on the obsolete May 2024 weekday labels or counts future weeks as current workload, and an empty week no longer invents a “busiest” day.
+
+
+### Future-safe same-day planning
+
+Same-day natural-language planning now rounds the current clock forward to the next 15-minute slot. A command entered at 12:07 therefore starts from 12:15 rather than silently considering 12:00, preventing new work from being proposed in the past.

@@ -9,7 +9,10 @@ import {
   fromISODate,
   toISODate,
 } from '../utils/date'
-import { formatTime } from '../utils/time'
+import {
+  formatTime,
+  nextSnapMinute,
+} from '../utils/time'
 
 interface Props {
   events: PlannerEvent[]
@@ -32,16 +35,9 @@ export function CommandPalette({
   const now = new Date()
   const contextStartMin =
     toISODate(now) === contextDate
-      ? Math.max(
-          7 * 60,
-          Math.min(
-            21 * 60,
-            Math.round(
-              (now.getHours() * 60 +
-                now.getMinutes()) /
-                15,
-            ) * 15,
-          ),
+      ? nextSnapMinute(
+          now.getHours() * 60 +
+            now.getMinutes(),
         )
       : START_MIN
 

@@ -23,3 +23,17 @@ export const parseTime = (value: string, fallback: number) => {
 
 export const clampStart = (startMin: number, durationMin: number) =>
   clamp(startMin, START_MIN, END_MIN - durationMin)
+
+
+export const nextSnapMinute = (
+  minutes: number,
+) =>
+  clamp(
+    Math.ceil(
+      minutes /
+        SNAP_MINUTES,
+    ) * SNAP_MINUTES,
+    START_MIN,
+    END_MIN -
+      SNAP_MINUTES,
+  )
