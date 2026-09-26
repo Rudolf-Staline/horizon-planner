@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent } from 'react'
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { GripHorizontal, Lock, Move } from 'lucide-react'
 import { PX_PER_MIN, SNAP_MINUTES, START_MIN } from '../domain/constants'
 import type { PlannerEvent } from '../domain/types'
@@ -93,6 +93,94 @@ export function EventCard({
     setPreview({ day, startMin })
   }
 
+  const keyboard = (
+    e: KeyboardEvent<HTMLElement>,
+  ) => {
+    if (
+      e.key === 'Enter' ||
+      e.key === ' '
+    ) {
+      e.preventDefault()
+      onSelect()
+      return
+    }
+
+    if (e.key === 'Escape') {
+      setPreview(null)
+      gesture.current = null
+      setDragging(false)
+      return
+    }
+
+    if (event.locked) return
+
+    if (
+      ![
+        'ArrowLeft',
+        'ArrowRight',
+        'ArrowUp',
+        'ArrowDown',
+      ].includes(e.key)
+    ) {
+      return
+    }
+
+    e.preventDefault()
+
+    if (
+      e.shiftKey &&
+      (
+        e.key === 'ArrowUp' ||
+        e.key === 'ArrowDown'
+      )
+    ) {
+      const direction =
+        e.key === 'ArrowDown'
+          ? 1
+          : -1
+      onChange({
+        durationMin: clamp(
+          event.durationMin +
+            direction * SNAP_MINUTES,
+          SNAP_MINUTES,
+          22 * 60 - event.startMin,
+        ),
+      })
+      return
+    }
+
+    if (
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight'
+    ) {
+      const direction =
+        e.key === 'ArrowRight'
+          ? 1
+          : -1
+      onChange({
+        day: clamp(
+          event.day + direction,
+          0,
+          maxDay,
+        ),
+      })
+      return
+    }
+
+    const direction =
+      e.key === 'ArrowDown'
+        ? 1
+        : -1
+    onChange({
+      startMin: clamp(
+        event.startMin +
+          direction * SNAP_MINUTES,
+        START_MIN,
+        22 * 60 - event.durationMin,
+      ),
+    })
+  }
+
   const end = (e: PointerEvent) => {
     if (!gesture.current) return
 
@@ -114,6 +202,21 @@ export function EventCard({
 
   return (
     <article
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      aria-label={
+        event.title +
+        (event.kind === 'flexible'
+          ? ', tâche flexible'
+          : ', événement fixe') +
+        ((event.segmentCount ?? 1) > 1
+          ? ', bloc ' +
+            ((event.segmentIndex ?? 0) + 1) +
+            ' sur ' +
+            event.segmentCount
+          : '')
+      }
       className={[
         'event-card',
         `category-${live.category}`,
@@ -130,6 +233,8 @@ export function EventCard({
       onPointerDown={(e) => begin('move', e)}
       onPointerMove={move}
       onPointerUp={end}
+      onPointerCancel={end}
+      onKeyDown={keyboard}
       onClick={(e) => {
         e.stopPropagation()
         onSelect()

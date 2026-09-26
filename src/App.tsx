@@ -33,10 +33,18 @@ import {
   type RoutineException,
 } from './data/routines'
 
+function preferredCalendarMode(): CalendarMode {
+  return window.matchMedia?.('(max-width: 900px)').matches
+    ? 'day'
+    : 'week'
+}
+
 export default function App() {
   const planner = usePlanner()
   const [view, setView] =
-    useState<CalendarMode | 'now'>('week')
+    useState<CalendarMode | 'now'>(
+      () => preferredCalendarMode(),
+    )
   const [anchorDate, setAnchorDate] =
     useState(() => toISODate(new Date()))
   const [section, setSection] =
@@ -276,7 +284,9 @@ export default function App() {
               'calendar'
             ) {
               if (view === 'now') {
-                setView('week')
+                setView(
+                  preferredCalendarMode(),
+                )
               }
             }
           }}

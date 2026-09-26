@@ -25,7 +25,8 @@
 - Undo / redo (`Cmd/Ctrl+Z`, `Cmd/Ctrl+Shift+Z`)
 - Account-scoped local persistence + Supabase cloud sync
 - Password authentication and admin console
-- Responsive mobile fallback
+- Responsive mobile day-first calendar
+- Keyboard calendar manipulation (move with arrows, resize with Shift+arrows)
 - `prefers-reduced-motion` support
 - Vitest coverage for scheduling invariants
 
