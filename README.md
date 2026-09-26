@@ -126,3 +126,8 @@ A recurring routine can now be skipped or overridden for a single date without c
 ### Normalized source of truth
 
 Planner startup now reconciles only the normalized Supabase model with the per-user local cache. Newer local changes can be pushed back to the normalized tables, while a failed cloud read is never treated as permission to overwrite remote state. The former `planner_snapshots` bridge is no longer part of runtime synchronization.
+
+
+### Targeted normalized synchronization
+
+Planner persistence now upserts current tasks, segments, constraints and manual calendar events before deleting only stale rows. This avoids the former delete-all/reinsert window and preserves an existing task completion timestamp when an already-completed task is synchronized again.
