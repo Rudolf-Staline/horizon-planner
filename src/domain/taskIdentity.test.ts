@@ -4,6 +4,7 @@ import {
   groupTaskEvents,
   isCalendarEntity,
   logicalTaskId,
+  taskProgress,
 } from './taskIdentity'
 import type { PlannerEvent } from './types'
 
@@ -64,6 +65,28 @@ describe('planner task identity', () => {
     expect(isCalendarEntity(task)).toBe(false)
     expect(isCalendarEntity(calendar)).toBe(true)
     expect(logicalTaskId(task)).toBe('task-x')
+  })
+
+  it('computes task-level progress from all segments', () => {
+    const first = {
+      ...segment('segment-a', 'task-a', 0),
+      durationMin: 60,
+      completed: true,
+    }
+    const second = {
+      ...segment('segment-b', 'task-a', 1),
+      durationMin: 120,
+      completed: false,
+    }
+
+    expect(taskProgress([first, second])).toEqual({
+      totalSegments: 2,
+      completedSegments: 1,
+      totalDuration: 180,
+      completedDuration: 60,
+      percent: 33,
+      completed: false,
+    })
   })
 
   it('removes the old visual split suffix from persisted task titles', () => {

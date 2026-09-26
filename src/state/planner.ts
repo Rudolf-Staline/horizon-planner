@@ -491,6 +491,26 @@ export function usePlanner() {
     [events, selectedId],
   )
 
+  const selectedTaskSegments = useMemo(() => {
+    if (!selected || selected.entityType !== 'task') {
+      return []
+    }
+
+    const taskId = logicalTaskId(selected)
+    return events
+      .filter(
+        (event) =>
+          event.entityType === 'task' &&
+          logicalTaskId(event) === taskId,
+      )
+      .sort(
+        (a, b) =>
+          (a.segmentIndex ?? 0) - (b.segmentIndex ?? 0) ||
+          (a.date ?? '').localeCompare(b.date ?? '') ||
+          a.startMin - b.startMin,
+      )
+  }, [events, selected])
+
   const conflictEvent = useMemo(
     () => events.find((event) => event.id === lastConflictId) ?? null,
     [events, lastConflictId],
@@ -644,10 +664,105 @@ export function usePlanner() {
     commit(next)
   }
 
+  const toggleTaskCompleted = (id: string) => {
+    const target = events.find((event) => event.id === id)
+    if (!target) return
+
+    if (target.entityType !== 'task') {
+      toggleCompleted(id)
+      return
+    }
+
+    const taskId = logicalTaskId(target)
+    const siblings = events.filter(
+      (event) =>
+        event.entityType === 'task' &&
+        logicalTaskId(event) === taskId,
+    )
+    const nextCompleted =
+      !siblings.every((event) => Boolean(event.completed))
+
+    commit(
+      events.map((event) =>
+        event.entityType === 'task' &&
+        logicalTaskId(event) === taskId
+          ? { ...event, completed: nextCompleted }
+          : event,
+      ),
+    )
+  }
+
   const deleteEvent = (id: string) => {
-    commit(events.filter((event) => event.id !== id))
+    const target = events.find((event) => event.id === id)
+    if (!target) return
+
+    let next = events.filter((event) => event.id !== id)
+
+    if (target.entityType === 'task') {
+      const taskId = logicalTaskId(target)
+      const remaining = next
+        .filter(
+          (event) =>
+            event.entityType === 'task' &&
+            logicalTaskId(event) === taskId,
+        )
+        .sort(
+          (a, b) =>
+            (a.date ?? '').localeCompare(b.date ?? '') ||
+            a.startMin - b.startMin,
+        )
+
+      const indexById = new Map(
+        remaining.map((event, index) => [event.id, index]),
+      )
+
+      next = next.map((event) => {
+        const index = indexById.get(event.id)
+        if (index === undefined) return event
+
+        return {
+          ...event,
+          segmentIndex: index,
+          segmentCount: remaining.length,
+        }
+      })
+    }
+
+    commit(next)
     setSelectedId((current) => current === id ? null : current)
     setLastConflictId((current) => current === id ? null : current)
+  }
+
+  const deleteTask = (id: string) => {
+    const target = events.find((event) => event.id === id)
+    if (!target) return
+
+    if (target.entityType !== 'task') {
+      deleteEvent(id)
+      return
+    }
+
+    const taskId = logicalTaskId(target)
+    const removedIds = new Set(
+      events
+        .filter(
+          (event) =>
+            event.entityType === 'task' &&
+            logicalTaskId(event) === taskId,
+        )
+        .map((event) => event.id),
+    )
+
+    commit(
+      events.filter((event) => !removedIds.has(event.id)),
+    )
+
+    setSelectedId((current) =>
+      current && removedIds.has(current) ? null : current,
+    )
+    setLastConflictId((current) =>
+      current && removedIds.has(current) ? null : current,
+    )
   }
 
   const undo = () => {
@@ -685,13 +800,16 @@ export function usePlanner() {
     events,
     selectedId,
     selected,
+    selectedTaskSegments,
     setSelectedId,
     updateEvent,
     editEvent,
     createEvent,
     createEvents,
     toggleCompleted,
+    toggleTaskCompleted,
     deleteEvent,
+    deleteTask,
     undo,
     redo,
     canUndo: undoStack.current.length > 0,

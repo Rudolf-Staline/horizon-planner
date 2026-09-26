@@ -50,3 +50,34 @@ export function groupTaskEvents(events: PlannerEvent[]) {
 
   return groups
 }
+
+
+export function taskProgress(segments: PlannerEvent[]) {
+  const totalSegments = segments.length
+  const completedSegments = segments.filter(
+    (segment) => Boolean(segment.completed),
+  ).length
+  const totalDuration = segments.reduce(
+    (total, segment) => total + segment.durationMin,
+    0,
+  )
+  const completedDuration = segments.reduce(
+    (total, segment) =>
+      total + (segment.completed ? segment.durationMin : 0),
+    0,
+  )
+
+  return {
+    totalSegments,
+    completedSegments,
+    totalDuration,
+    completedDuration,
+    percent:
+      totalDuration > 0
+        ? Math.round((completedDuration / totalDuration) * 100)
+        : 0,
+    completed:
+      totalSegments > 0 &&
+      completedSegments === totalSegments,
+  }
+}
