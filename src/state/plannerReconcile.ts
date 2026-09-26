@@ -15,6 +15,26 @@ export type PlannerChoice = PlannerCandidate & {
   shouldPush: boolean
 }
 
+export type PlannerReconcileMode =
+  | 'initial'
+  | 'background'
+
+export function plannerReconcileMode(
+  currentUserId: string | null,
+  incomingUserId: string | null,
+): PlannerReconcileMode {
+  return currentUserId &&
+    incomingUserId === currentUserId
+    ? 'background'
+    : 'initial'
+}
+
+export function showsPlannerLoading(
+  mode: PlannerReconcileMode,
+) {
+  return mode === 'initial'
+}
+
 export function choosePlannerSource(input: {
   normalized: PlannerCandidate | null
   local: PlannerCandidate | null

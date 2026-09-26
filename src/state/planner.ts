@@ -21,7 +21,12 @@ import {
   loadNormalizedPlanner,
   syncNormalizedPlanner,
 } from '../data/normalizedPlanner'
-import { choosePlannerSource } from './plannerReconcile'
+import {
+  choosePlannerSource,
+  plannerReconcileMode,
+  showsPlannerLoading,
+  type PlannerReconcileMode,
+} from './plannerReconcile'
 import {
   LEGACY_STORAGE_KEY,
   parseLocalPlannerEnvelope,
@@ -325,7 +330,7 @@ export function usePlanner() {
 
     const reconcile = async (
       user: Awaited<ReturnType<typeof currentCloudUser>>,
-      background = false,
+      mode: PlannerReconcileMode = 'initial',
     ) => {
       if (cancelled) return
 
@@ -345,7 +350,7 @@ export function usePlanner() {
         return
       }
 
-      if (!background) {
+      if (showsPlannerLoading(mode)) {
         setAuthStatus('loading')
       }
       localStorage.removeItem(LEGACY_STORAGE_KEY)
@@ -474,7 +479,7 @@ export function usePlanner() {
             ? 'error'
             : 'synced',
         )
-        if (!background) {
+        if (showsPlannerLoading(mode)) {
           setAuthStatus('authenticated')
         }
 
@@ -538,7 +543,7 @@ export function usePlanner() {
       } catch {
         if (cancelled) return
 
-        if (background) {
+        if (mode === 'background') {
           setCloudStatus('error')
           return
         }
@@ -558,7 +563,7 @@ export function usePlanner() {
       }
 
       backgroundRefreshInFlight = true
-      await reconcile(user, true)
+      await reconcile(user, 'background')
       backgroundRefreshInFlight = false
 
       if (backgroundRefreshPending && !cancelled) {
@@ -608,11 +613,11 @@ export function usePlanner() {
 
       queueMicrotask(() => {
         const user = session?.user ?? null
-        const background = Boolean(
-          user &&
-          cloudUserIdRef.current === user.id,
+        const mode = plannerReconcileMode(
+          cloudUserIdRef.current,
+          user?.id ?? null,
         )
-        void reconcile(user, background)
+        void reconcile(user, mode)
       })
     })
 

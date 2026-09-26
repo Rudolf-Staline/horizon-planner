@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { PlannerEvent } from '../domain/types'
-import { choosePlannerSource } from './plannerReconcile'
+import {
+  choosePlannerSource,
+  plannerReconcileMode,
+  showsPlannerLoading,
+} from './plannerReconcile'
 
 const event = (id: string): PlannerEvent => ({
   id,
@@ -133,5 +137,27 @@ describe('planner reconciliation edge cases', () => {
       shouldPush: false,
       modifiedAt: 300,
     })
+  })
+})
+
+describe('planner refresh presentation', () => {
+  it('keeps the planner mounted when the current session refreshes', () => {
+    const mode = plannerReconcileMode(
+      'user-1',
+      'user-1',
+    )
+
+    expect(mode).toBe('background')
+    expect(showsPlannerLoading(mode)).toBe(false)
+  })
+
+  it('shows the loading gate for the first authenticated session', () => {
+    const mode = plannerReconcileMode(
+      null,
+      'user-1',
+    )
+
+    expect(mode).toBe('initial')
+    expect(showsPlannerLoading(mode)).toBe(true)
   })
 })
