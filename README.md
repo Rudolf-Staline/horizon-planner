@@ -242,3 +242,8 @@ Natural-language tasks without an explicit clock constraint no longer inherit a 
 ### Real pause semantics in Now mode
 
 The Pause action now controls a real local execution timer instead of only changing button text. Pausing freezes the remaining execution time, resuming continues from that frozen value, and the running session can remain focused after its original calendar window ends. This execution timer never mutates or silently shifts the schedule.
+
+
+### Date-true weekly analytics
+
+The analytics screen now measures only the real current Monday-Sunday interval using each event's ISO date. It no longer relies on the obsolete May 2024 weekday labels or counts future weeks as current workload, and an empty week no longer invents a “busiest” day.
