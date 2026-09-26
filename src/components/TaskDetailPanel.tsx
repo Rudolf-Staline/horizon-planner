@@ -1,4 +1,4 @@
-import { Lock, Trash2, X } from 'lucide-react'
+import { CheckCircle2, Layers3, Lock, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type {
   Category,
@@ -6,6 +6,7 @@ import type {
   PlannerEvent,
   Priority,
 } from '../domain/types'
+import { taskProgress } from '../domain/taskIdentity'
 import {
   fromISODate,
   toISODate,
@@ -19,23 +20,29 @@ import {
 
 interface Props {
   event: PlannerEvent
+  segments: PlannerEvent[]
   userId: string
   onClose: () => void
   onChange: (
     id: string,
     patch: Partial<PlannerEvent>,
   ) => void
-  onDelete: (id: string) => void
-  onToggleCompleted: (id: string) => void
+  onDeleteSegment: (id: string) => void
+  onDeleteTask: (id: string) => void
+  onToggleSegment: (id: string) => void
+  onToggleTask: (id: string) => void
 }
 
 export function TaskDetailPanel({
   event,
+  segments,
   userId,
   onClose,
   onChange,
-  onDelete,
-  onToggleCompleted,
+  onDeleteSegment,
+  onDeleteTask,
+  onToggleSegment,
+  onToggleTask,
 }: Props) {
   const [title, setTitle] =
     useState(event.title)
@@ -57,6 +64,11 @@ export function TaskDetailPanel({
     useState<EventKind>(event.kind)
   const [locked, setLocked] =
     useState(Boolean(event.locked))
+
+  const multiSegment =
+    event.entityType === 'task' &&
+    segments.length > 1
+  const progress = taskProgress(segments)
 
   useEffect(() => {
     void listProjects(userId)
@@ -101,16 +113,31 @@ export function TaskDetailPanel({
     })
   }
 
-  const remove = () => {
+  const removeSegment = () => {
+    const label = multiSegment
+      ? 'Supprimer uniquement ce bloc de « ' + event.title + ' » ?'
+      : 'Supprimer « ' + event.title + ' » ?'
+
+    if (!window.confirm(label)) return
+
+    onDeleteSegment(event.id)
+    onClose()
+  }
+
+  const removeTask = () => {
     if (
       !window.confirm(
-        `Supprimer « ${event.title} » ?`,
+        'Supprimer la tâche entière « ' +
+          event.title +
+          ' » et ses ' +
+          segments.length +
+          ' blocs ?',
       )
     ) {
       return
     }
 
-    onDelete(event.id)
+    onDeleteTask(event.id)
     onClose()
   }
 
@@ -118,8 +145,19 @@ export function TaskDetailPanel({
     <aside className="task-detail-panel">
       <div className="task-detail-head">
         <div>
-          <span>DÉTAIL</span>
-          <h2>Modifier l’élément</h2>
+          <span>
+            {multiSegment
+              ? 'TÂCHE FRACTIONNÉE'
+              : 'DÉTAIL'}
+          </span>
+          <h2>
+            {multiSegment
+              ? 'Bloc ' +
+                ((event.segmentIndex ?? 0) + 1) +
+                '/' +
+                segments.length
+              : 'Modifier l’élément'}
+          </h2>
         </div>
         <button
           className="icon-button"
@@ -129,6 +167,40 @@ export function TaskDetailPanel({
           <X size={18}/>
         </button>
       </div>
+
+      {multiSegment && (
+        <section className="task-progress-card">
+          <div className="task-progress-head">
+            <div>
+              <Layers3 size={17}/>
+              <strong>Progression de la tâche</strong>
+            </div>
+            <span>{progress.percent}%</span>
+          </div>
+          <div className="task-progress-track">
+            <i
+              style={{
+                width: progress.percent + '%',
+              }}
+            />
+          </div>
+          <p>
+            {progress.completedSegments}/{progress.totalSegments}
+            {' '}blocs terminés · {progress.completedDuration}/
+            {progress.totalDuration} min
+          </p>
+          <button
+            type="button"
+            className="task-progress-action"
+            onClick={() => onToggleTask(event.id)}
+          >
+            <CheckCircle2 size={15}/>
+            {progress.completed
+              ? 'Rouvrir toute la tâche'
+              : 'Terminer toute la tâche'}
+          </button>
+        </section>
+      )}
 
       <div className="task-detail-form">
         <label>
@@ -278,20 +350,38 @@ export function TaskDetailPanel({
             type="checkbox"
             checked={Boolean(event.completed)}
             onChange={() =>
-              onToggleCompleted(event.id)}
+              onToggleSegment(event.id)}
           />
-          <span>Terminée</span>
+          <span>
+            {multiSegment
+              ? 'Ce bloc est terminé'
+              : 'Terminée'}
+          </span>
         </label>
       </div>
 
       <div className="task-detail-actions">
-        <button
-          className="task-delete"
-          onClick={remove}
-        >
-          <Trash2 size={16}/>
-          Supprimer
-        </button>
+        <div className="task-delete-group">
+          <button
+            className="task-delete"
+            onClick={removeSegment}
+          >
+            <Trash2 size={16}/>
+            {multiSegment
+              ? 'Supprimer ce bloc'
+              : 'Supprimer'}
+          </button>
+
+          {multiSegment && (
+            <button
+              className="task-delete task-delete-all"
+              onClick={removeTask}
+            >
+              <Trash2 size={16}/>
+              Supprimer la tâche
+            </button>
+          )}
+        </div>
 
         <button
           className="btn primary"
