@@ -179,3 +179,8 @@ Overlapping events on the same date are assigned deterministic visual lanes. Con
 ### Drag edge auto-scroll
 
 Calendar drag gestures now account for the calendar container scroll offset. Moving a captured card near a vertical or horizontal viewport edge scrolls the grid progressively while preserving 15-minute and day-column gesture calculations.
+
+
+### Planner flow integration tests
+
+Domain-level integration tests now cover complete planning flows: natural-language parsing on a Sunday, scheduling across a week boundary, multi-day splitting under narrow daily windows, fixed-appointment exclusion, and the separation between semantic category and flexible scheduling behavior.
