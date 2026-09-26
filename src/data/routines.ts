@@ -18,6 +18,15 @@ export type Routine = {
   active: boolean
 }
 
+export type RoutineException = {
+  id: string
+  routineId: string
+  occursOn: string
+  action: 'skip' | 'override'
+  overrideStart: string | null
+  overrideDurationMin: number | null
+}
+
 function requireSupabase() {
   if (!supabase) {
     throw new Error('Supabase n’est pas configuré.')
@@ -162,6 +171,86 @@ export async function deleteRoutine(
   if (error) throw error
 }
 
+export async function listRoutineExceptions(
+  userId: string,
+): Promise<RoutineException[]> {
+  const client = requireSupabase()
+
+  const { data, error } = await client
+    .from('routine_exceptions')
+    .select(
+      'id,routine_id,occurs_on,action,override_start,override_duration_min',
+    )
+    .eq('user_id', userId)
+    .order('occurs_on', {
+      ascending: true,
+    })
+
+  if (error) throw error
+
+  return (data ?? []).map((item) => ({
+    id: item.id,
+    routineId: item.routine_id,
+    occursOn: item.occurs_on,
+    action: item.action,
+    overrideStart:
+      item.override_start ?? null,
+    overrideDurationMin:
+      item.override_duration_min ?? null,
+  }))
+}
+
+export async function upsertRoutineException(
+  userId: string,
+  input: {
+    routineId: string
+    occursOn: string
+    action: 'skip' | 'override'
+    overrideStart?: string | null
+    overrideDurationMin?: number | null
+  },
+) {
+  const client = requireSupabase()
+
+  const { error } = await client
+    .from('routine_exceptions')
+    .upsert(
+      {
+        user_id: userId,
+        routine_id: input.routineId,
+        occurs_on: input.occursOn,
+        action: input.action,
+        override_start:
+          input.action === 'override' &&
+          input.overrideStart
+            ? input.overrideStart + ':00'
+            : null,
+        override_duration_min:
+          input.action === 'override'
+            ? input.overrideDurationMin ?? null
+            : null,
+      },
+      {
+        onConflict: 'routine_id,occurs_on',
+      },
+    )
+
+  if (error) throw error
+}
+
+export async function deleteRoutineException(
+  exceptionId: string,
+) {
+  const client = requireSupabase()
+
+  const { error } = await client
+    .from('routine_exceptions')
+    .delete()
+    .eq('id', exceptionId)
+
+  if (error) throw error
+}
+
 function startMinutes(
   preferredStart: string | null,
 ) {
@@ -179,10 +268,17 @@ export function expandRoutines(
   routines: Routine[],
   startDate: string,
   endDate: string,
+  exceptions: RoutineException[] = [],
 ): PlannerEvent[] {
   const start = fromISODate(startDate)
   const end = fromISODate(endDate)
   const events: PlannerEvent[] = []
+  const exceptionByOccurrence = new Map(
+    exceptions.map((exception) => [
+      exception.routineId + ':' + exception.occursOn,
+      exception,
+    ]),
+  )
 
   for (
     let cursor = start;
@@ -200,6 +296,15 @@ export function expandRoutines(
         continue
       }
 
+      const exception =
+        exceptionByOccurrence.get(
+          routine.id + ':' + date,
+        )
+
+      if (exception?.action === 'skip') {
+        continue
+      }
+
       events.push({
         id:
           `routine:${routine.id}:${date}`,
@@ -208,11 +313,19 @@ export function expandRoutines(
         date,
         day,
         startMin:
-          startMinutes(
-            routine.preferredStart,
-          ),
+          exception?.action === 'override' &&
+          exception.overrideStart
+            ? startMinutes(
+                exception.overrideStart,
+              )
+            : startMinutes(
+                routine.preferredStart,
+              ),
         durationMin:
-          routine.durationMin,
+          exception?.action === 'override' &&
+          exception.overrideDurationMin
+            ? exception.overrideDurationMin
+            : routine.durationMin,
         category:
           routine.category,
         projectId:

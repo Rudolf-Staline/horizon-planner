@@ -74,8 +74,8 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Add routine exception dates and per-occurrence overrides
-2. Improve multi-segment editing UX and task-level progress
+1. Improve mobile day-first interaction and calendar accessibility
+2. Broaden state-history, pointer and integration tests
 3. Improve mobile day-first interaction and calendar accessibility
 4. Add richer task detail/editing and normalized project membership
 5. Broaden state-history, pointer and integration tests
@@ -115,3 +115,8 @@ Tasks can now exist without an immediate calendar placement. The Tasks screen ha
 ### Multi-segment task identity
 
 A logical task now has an explicit `taskId`, while each calendar placement keeps its own segment `id` and `segmentIndex`. Multiple scheduled blocks therefore persist as one row in `tasks` plus multiple rows in `planned_segments`, instead of being duplicated into separate tasks.
+
+
+### Routine exceptions
+
+A recurring routine can now be skipped or overridden for a single date without changing the whole series. Exceptions are stored in `routine_exceptions` and applied when routine occurrences are projected into the visible calendar range.

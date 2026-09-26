@@ -27,8 +27,10 @@ import {
 } from './utils/date'
 import {
   expandRoutines,
+  listRoutineExceptions,
   listRoutines,
   type Routine,
+  type RoutineException,
 } from './data/routines'
 
 export default function App() {
@@ -50,6 +52,8 @@ export default function App() {
     useState(false)
   const [routines, setRoutines] =
     useState<Routine[]>([])
+  const [routineExceptions, setRoutineExceptions] =
+    useState<RoutineException[]>([])
 
   const isAdmin =
     planner.cloudUserRole === 'admin'
@@ -60,12 +64,22 @@ export default function App() {
   useEffect(() => {
     if (!planner.cloudUserId) {
       setRoutines([])
+      setRoutineExceptions([])
       return
     }
 
-    void listRoutines(planner.cloudUserId)
-      .then(setRoutines)
-      .catch(() => setRoutines([]))
+    void Promise.all([
+      listRoutines(planner.cloudUserId),
+      listRoutineExceptions(planner.cloudUserId),
+    ])
+      .then(([nextRoutines, nextExceptions]) => {
+        setRoutines(nextRoutines)
+        setRoutineExceptions(nextExceptions)
+      })
+      .catch(() => {
+        setRoutines([])
+        setRoutineExceptions([])
+      })
   }, [planner.cloudUserId])
 
   useEffect(() => {
@@ -168,8 +182,9 @@ export default function App() {
       routines,
       toISODate(rangeStart),
       toISODate(rangeEnd),
+      routineExceptions,
     )
-  }, [routines, anchorDate, view])
+  }, [routines, routineExceptions, anchorDate, view])
 
   const calendarEvents = useMemo(
     () => [
@@ -331,7 +346,9 @@ export default function App() {
             <RoutinesView
               userId={planner.cloudUserId}
               routines={routines}
+              exceptions={routineExceptions}
               onChange={setRoutines}
+              onExceptionsChange={setRoutineExceptions}
             />
           )}
 

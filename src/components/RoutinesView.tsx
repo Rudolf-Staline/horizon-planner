@@ -1,4 +1,5 @@
 import {
+  CalendarX2,
   Check,
   Pencil,
   PauseCircle,
@@ -15,10 +16,14 @@ import {
 import {
   createRoutine,
   deleteRoutine,
+  deleteRoutineException,
+  listRoutineExceptions,
   listRoutines,
   setRoutineActive,
   updateRoutine,
+  upsertRoutineException,
   type Routine,
+  type RoutineException,
 } from '../data/routines'
 import {
   listProjects,
@@ -38,7 +43,11 @@ const DAY_LABELS = [
 interface Props {
   userId: string
   routines: Routine[]
+  exceptions: RoutineException[]
   onChange: (routines: Routine[]) => void
+  onExceptionsChange: (
+    exceptions: RoutineException[],
+  ) => void
 }
 
 type Draft = {
@@ -60,7 +69,9 @@ const emptyDraft = (): Draft => ({
 export function RoutinesView({
   userId,
   routines,
+  exceptions,
   onChange,
+  onExceptionsChange,
 }: Props) {
   const [creating, setCreating] =
     useState(false)
@@ -74,6 +85,16 @@ export function RoutinesView({
     useState(false)
   const [error, setError] =
     useState<string | null>(null)
+  const [exceptionRoutineId, setExceptionRoutineId] =
+    useState('')
+  const [exceptionDate, setExceptionDate] =
+    useState('')
+  const [exceptionAction, setExceptionAction] =
+    useState<'skip' | 'override'>('skip')
+  const [exceptionTime, setExceptionTime] =
+    useState('08:00')
+  const [exceptionDuration, setExceptionDuration] =
+    useState(45)
 
   useEffect(() => {
     void listProjects(userId)
@@ -92,6 +113,78 @@ export function RoutinesView({
     const next =
       await listRoutines(userId)
     onChange(next)
+  }
+
+  const refreshExceptions = async () => {
+    const next =
+      await listRoutineExceptions(userId)
+    onExceptionsChange(next)
+  }
+
+  const saveException = async () => {
+    if (
+      !exceptionRoutineId ||
+      !exceptionDate ||
+      busy
+    ) {
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+
+    try {
+      await upsertRoutineException(
+        userId,
+        {
+          routineId: exceptionRoutineId,
+          occursOn: exceptionDate,
+          action: exceptionAction,
+          overrideStart:
+            exceptionAction === 'override'
+              ? exceptionTime
+              : null,
+          overrideDurationMin:
+            exceptionAction === 'override'
+              ? exceptionDuration
+              : null,
+        },
+      )
+
+      setExceptionDate('')
+      setExceptionAction('skip')
+      await refreshExceptions()
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Exception impossible à enregistrer.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const removeException = async (
+    exceptionId: string,
+  ) => {
+    setBusy(true)
+    setError(null)
+
+    try {
+      await deleteRoutineException(
+        exceptionId,
+      )
+      await refreshExceptions()
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Suppression de l’exception impossible.',
+      )
+    } finally {
+      setBusy(false)
+    }
   }
 
   const toggleDay = (day: number) => {
@@ -544,6 +637,174 @@ export function RoutinesView({
               </div>
             </article>
           ))
+        )}
+      </section>
+
+      <section className="routine-exceptions">
+        <div className="routine-exception-head">
+          <div>
+            <CalendarX2 size={18}/>
+            <div>
+              <strong>Exceptions ponctuelles</strong>
+              <span>
+                Ignorez une occurrence ou modifiez seulement
+                une date sans toucher à toute la série.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="routine-exception-form">
+          <select
+            value={exceptionRoutineId}
+            onChange={(event) =>
+              setExceptionRoutineId(
+                event.target.value,
+              )}
+          >
+            <option value="">
+              Choisir une routine
+            </option>
+            {routines.map((routine) => (
+              <option
+                key={routine.id}
+                value={routine.id}
+              >
+                {routine.title}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            value={exceptionDate}
+            onChange={(event) =>
+              setExceptionDate(
+                event.target.value,
+              )}
+          />
+
+          <select
+            value={exceptionAction}
+            onChange={(event) =>
+              setExceptionAction(
+                event.target.value as
+                  'skip' | 'override',
+              )}
+          >
+            <option value="skip">
+              Ignorer cette occurrence
+            </option>
+            <option value="override">
+              Modifier cette occurrence
+            </option>
+          </select>
+
+          {exceptionAction === 'override' && (
+            <>
+              <input
+                type="time"
+                step={900}
+                value={exceptionTime}
+                onChange={(event) =>
+                  setExceptionTime(
+                    event.target.value,
+                  )}
+              />
+              <select
+                value={exceptionDuration}
+                onChange={(event) =>
+                  setExceptionDuration(
+                    Number(
+                      event.target.value,
+                    ),
+                  )}
+              >
+                <option value={30}>30 min</option>
+                <option value={45}>45 min</option>
+                <option value={60}>1 h</option>
+                <option value={90}>1 h 30</option>
+                <option value={120}>2 h</option>
+              </select>
+            </>
+          )}
+
+          <button
+            className="btn primary"
+            disabled={
+              busy ||
+              !exceptionRoutineId ||
+              !exceptionDate
+            }
+            onClick={() =>
+              void saveException()}
+          >
+            Enregistrer
+          </button>
+        </div>
+
+        {exceptions.length > 0 && (
+          <div className="routine-exception-list">
+            {exceptions.map((exception) => {
+              const routine =
+                routines.find(
+                  (item) =>
+                    item.id ===
+                    exception.routineId,
+                )
+
+              return (
+                <article key={exception.id}>
+                  <div>
+                    <strong>
+                      {routine?.title ??
+                        'Routine'}
+                    </strong>
+                    <span>
+                      {new Intl.DateTimeFormat(
+                        'fr-FR',
+                        {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        },
+                      ).format(
+                        new Date(
+                          exception.occursOn +
+                            'T12:00:00',
+                        ),
+                      )}
+                      {' · '}
+                      {exception.action ===
+                      'skip'
+                        ? 'ignorée'
+                        : 'modifiée'}
+                      {exception.action ===
+                          'override' &&
+                        exception.overrideStart
+                        ? ' · ' +
+                          exception.overrideStart.slice(
+                            0,
+                            5,
+                          )
+                        : ''}
+                    </span>
+                  </div>
+
+                  <button
+                    className="danger"
+                    disabled={busy}
+                    onClick={() =>
+                      void removeException(
+                        exception.id,
+                      )}
+                  >
+                    <Trash2 size={15}/>
+                  </button>
+                </article>
+              )
+            })}
+          </div>
         )}
       </section>
 
