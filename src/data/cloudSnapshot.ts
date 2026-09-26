@@ -29,6 +29,7 @@ function isPlannerEvent(value: unknown): value is PlannerEvent {
     event.day <= 6 &&
     typeof event.startMin === 'number' &&
     typeof event.durationMin === 'number' &&
+    (event.projectId === undefined || typeof event.projectId === 'string') &&
     typeof event.category === 'string' &&
     categories.has(event.category as Category) &&
     typeof event.kind === 'string' &&

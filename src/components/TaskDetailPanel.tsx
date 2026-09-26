@@ -12,9 +12,14 @@ import {
   weekdayIndex,
 } from '../utils/date'
 import { formatTime, parseTime } from '../utils/time'
+import {
+  listProjects,
+  type Project,
+} from '../data/projects'
 
 interface Props {
   event: PlannerEvent
+  userId: string
   onClose: () => void
   onChange: (
     id: string,
@@ -26,6 +31,7 @@ interface Props {
 
 export function TaskDetailPanel({
   event,
+  userId,
   onClose,
   onChange,
   onDelete,
@@ -43,10 +49,28 @@ export function TaskDetailPanel({
     useState<Category>(event.category)
   const [priority, setPriority] =
     useState<Priority>(event.priority ?? 'medium')
+  const [projectId, setProjectId] =
+    useState(event.projectId ?? '')
+  const [projects, setProjects] =
+    useState<Project[]>([])
   const [kind, setKind] =
     useState<EventKind>(event.kind)
   const [locked, setLocked] =
     useState(Boolean(event.locked))
+
+  useEffect(() => {
+    void listProjects(userId)
+      .then((items) =>
+        setProjects(
+          items.filter(
+            (project) =>
+              !project.archived ||
+              project.id === event.projectId,
+          ),
+        ),
+      )
+      .catch(() => setProjects([]))
+  }, [userId, event.projectId])
 
   useEffect(() => {
     setTitle(event.title)
@@ -55,6 +79,7 @@ export function TaskDetailPanel({
     setDuration(event.durationMin)
     setCategory(event.category)
     setPriority(event.priority ?? 'medium')
+    setProjectId(event.projectId ?? '')
     setKind(event.kind)
     setLocked(Boolean(event.locked))
   }, [event])
@@ -69,6 +94,7 @@ export function TaskDetailPanel({
       startMin: parseTime(time, event.startMin),
       durationMin: Math.max(15, duration),
       category,
+      projectId: projectId || undefined,
       priority,
       kind,
       locked,
@@ -176,6 +202,27 @@ export function TaskDetailPanel({
             </select>
           </label>
         </div>
+
+        <label>
+          <span>Projet</span>
+          <select
+            value={projectId}
+            onChange={(event) =>
+              setProjectId(event.target.value)}
+          >
+            <option value="">
+              Aucun projet
+            </option>
+            {projects.map((project) => (
+              <option
+                key={project.id}
+                value={project.id}
+              >
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <div className="task-detail-row">
           <label>

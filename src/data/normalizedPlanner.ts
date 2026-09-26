@@ -82,7 +82,7 @@ export async function loadNormalizedPlanner(
     supabase
       .from('tasks')
       .select(
-        'id,title,category,priority,kind,duration_min,locked,status,updated_at',
+        'id,project_id,title,category,priority,kind,duration_min,locked,status,updated_at',
       )
       .eq('user_id', userId),
     supabase
@@ -101,7 +101,7 @@ export async function loadNormalizedPlanner(
     supabase
       .from('calendar_events')
       .select(
-        'id,title,category,starts_at,ends_at,locked,updated_at',
+        'id,project_id,title,category,starts_at,ends_at,locked,updated_at',
       )
       .eq('user_id', userId)
       .eq('source', 'manual'),
@@ -205,6 +205,7 @@ export async function loadNormalizedPlanner(
           ),
         ),
         category: task.category,
+        projectId: task.project_id ?? undefined,
         priority: task.priority,
         kind: task.kind,
         locked: task.locked,
@@ -254,6 +255,7 @@ export async function loadNormalizedPlanner(
         ),
       ),
       category: item.category,
+      projectId: item.project_id ?? undefined,
       kind: 'fixed',
       locked: item.locked,
     })
@@ -357,7 +359,7 @@ export async function syncNormalizedPlanner(
         taskEvents.map((event) => ({
           id: event.id,
           user_id: userId,
-          project_id: null,
+          project_id: event.projectId ?? null,
           title: event.title,
           notes: null,
           category: event.category,
@@ -482,7 +484,7 @@ export async function syncNormalizedPlanner(
           .map((event) => ({
             id: event.id,
             user_id: userId,
-            project_id: null,
+            project_id: event.projectId ?? null,
             title: event.title,
             category: event.category,
             starts_at:

@@ -8,6 +8,7 @@ import {
   type CalendarMode,
 } from './components/CalendarView'
 import { CollectionView } from './components/CollectionView'
+import { ProjectsView } from './components/ProjectsView'
 import { CommandPalette } from './components/CommandPalette'
 import { ConflictBar } from './components/ConflictBar'
 import { Header } from './components/Header'
@@ -235,14 +236,13 @@ export default function App() {
           />
         )}
 
-        {section === 'projects' && (
-          <CollectionView
-            title="Projets"
-            kicker="CONSTRUCTION"
-            category="project"
-            events={planner.events}
-          />
-        )}
+        {section === 'projects' &&
+          planner.cloudUserId && (
+            <ProjectsView
+              userId={planner.cloudUserId}
+              events={planner.events}
+            />
+          )}
 
         {section === 'routines' && (
           <CollectionView
@@ -328,6 +328,7 @@ export default function App() {
       {planner.selected && (
         <TaskDetailPanel
           event={planner.selected}
+          userId={planner.cloudUserId!}
           onClose={() => planner.setSelectedId(null)}
           onChange={planner.editEvent}
           onDelete={planner.deleteEvent}
