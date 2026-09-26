@@ -46,6 +46,23 @@ describe('constraint placement', () => {
     expect(placement!.startMin + placement!.durationMin).toBeLessThanOrEqual(16 * 60)
   })
 
+  it('uses the user planning bounds and step', () => {
+    const event = base({
+      startMin: 8 * 60,
+      durationMin: 60,
+      deadlineDay: 0,
+    })
+
+    const placement = findBestPlacement(event, [], {
+      startMin: 11 * 60,
+      endMin: 13 * 60,
+      planningStepMin: 30,
+    })
+
+    expect(placement).not.toBeNull()
+    expect(placement!.startMin).toBe(11 * 60)
+  })
+
   it('does not plan beyond the deadline day', () => {
     const blockers: PlannerEvent[] = [
       base({ id: 'block-0', day: 0, startMin: 7 * 60, durationMin: 15 * 60, kind: 'fixed' }),

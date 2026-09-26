@@ -16,8 +16,10 @@ import {
 
 export function AnalyticsView({
   events,
+  weekStartsOn = 1,
 }: {
   events: PlannerEvent[]
+  weekStartsOn?: number
 }) {
   const metrics =
     useMemo(
@@ -25,8 +27,9 @@ export function AnalyticsView({
         buildWeeklyAnalytics(
           events,
           new Date(),
+          weekStartsOn,
         ),
-      [events],
+      [events, weekStartsOn],
     )
 
   const hours = (
@@ -66,6 +69,16 @@ export function AnalyticsView({
               metrics.totalMinutes,
             )}{' '}h
           </strong>
+        </article>
+        <article>
+          <Clock3 size={18}/>
+          <span>Temps réalisé</span>
+          <strong>{hours(metrics.completedMinutes)} h</strong>
+        </article>
+        <article>
+          <BarChart3 size={18}/>
+          <span>Réalisation du plan</span>
+          <strong>{metrics.completionRate} %</strong>
         </article>
         <article>
           <Layers3 size={18}/>

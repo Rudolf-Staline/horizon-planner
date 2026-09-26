@@ -36,7 +36,15 @@ export function calendarGesturePatch(
   point: CalendarGesturePoint,
   columnWidth: number,
   maxDay: number,
+  config: {
+    startMin?: number
+    endMin?: number
+    planningStepMin?: number
+  } = {},
 ) {
+  const startMin = config.startMin ?? START_MIN
+  const endMin = config.endMin ?? END_MIN
+  const planningStepMin = config.planningStepMin ?? SNAP_MINUTES
   const scrollDy =
     point.scrollTop -
     origin.originalScrollTop
@@ -54,17 +62,15 @@ export function calendarGesturePatch(
     scrollDx
 
   const deltaMin =
-    snapMinutes(
-      dy / PX_PER_MIN,
-    )
+    snapMinutes(dy / PX_PER_MIN, planningStepMin)
 
   if (origin.mode === 'resize') {
     return {
       durationMin: clamp(
         origin.originalDuration +
           deltaMin,
-        SNAP_MINUTES,
-        END_MIN -
+        planningStepMin,
+        endMin -
           origin.originalStart,
       ),
     }
@@ -85,12 +91,9 @@ export function calendarGesturePatch(
       Math.max(0, maxDay),
     ),
     startMin: clamp(
-      snapMinutes(
-        origin.originalStart +
-          deltaMin,
-      ),
-      START_MIN,
-      END_MIN -
+      snapMinutes(origin.originalStart + deltaMin, planningStepMin),
+      startMin,
+      endMin -
         origin.originalDuration,
     ),
   }

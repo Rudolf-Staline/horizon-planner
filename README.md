@@ -2,7 +2,7 @@
 
 **Horizon** is a personal planning application focused on fast manipulation, visual clarity, authenticated multi-user data, and contextual replanning.
 
-## Current prototype
+## Current product surface
 
 - Real-date calendar with Day / Week / Month / Year navigation
 - Current-time **Maintenant** execution mode
@@ -25,6 +25,13 @@
 - Undo / redo (`Cmd/Ctrl+Z`, `Cmd/Ctrl+Shift+Z`)
 - Account-scoped local persistence + Supabase cloud sync
 - Password authentication and admin console
+- User preferences for timezone, week start, workday, active days, planning step and reminders
+- Browser reminders with explicit permission
+- JSON backup/import and ICS export
+- Read-only ICS sources for Google Calendar, Outlook and compatible providers
+- Realtime refresh across authenticated sessions
+- Account email change, global sign-out and self-service account deletion
+- PWA shell with offline application fallback
 - Responsive mobile day-first calendar
 - Keyboard calendar manipulation (move with arrows, resize with Shift+arrows)
 - `prefers-reduced-motion` support
@@ -72,9 +79,11 @@ Automatic planning never mutates an existing user schedule silently. It returns 
 
 See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
-## Remaining product work
+## Remaining operational work
 
-1. Retire the legacy snapshot table after a stability window
+1. Enable Supabase leaked-password protection in the Auth dashboard; the project security advisor still reports this configuration warning.
+2. Retire the legacy snapshot table after a stability window.
+3. Add provider OAuth flows only if bidirectional Google/Outlook writes are required; the current integration deliberately remains read-only through ICS feeds.
 
 
 ## Supabase

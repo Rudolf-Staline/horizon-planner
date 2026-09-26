@@ -5,6 +5,7 @@ import {
   FolderKanban,
   Repeat2,
   ShieldCheck,
+  Settings,
   Target,
 } from 'lucide-react'
 
@@ -15,6 +16,7 @@ export type Section =
   | 'routines'
   | 'focus'
   | 'analytics'
+  | 'settings'
   | 'admin'
 
 const mainItems = [
@@ -27,6 +29,7 @@ const mainItems = [
 const secondaryItems = [
   ['focus', 'Focus', Target],
   ['analytics', 'Analyses', BarChart3],
+  ['settings', 'Paramètres', Settings],
 ] as const
 
 interface Props {

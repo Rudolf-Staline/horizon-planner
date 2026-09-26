@@ -181,6 +181,7 @@ export function parseQuickTask(
   input: string,
   contextDate = toISODate(new Date()),
   contextStartMin = START_MIN,
+  defaultDurationMin = 60,
 ): ParsedTask | null {
   const original = input.trim()
   if (!original) return null
@@ -260,7 +261,7 @@ export function parseQuickTask(
     ' ',
   )
 
-  let durationMin = 60
+  let durationMin = defaultDurationMin
   const explicitHours = text.match(
     /(?:pendant|durant)\s+(\d+)\s*h\s*(\d{1,2})?/,
   )

@@ -2,6 +2,7 @@ import type { PlannerEvent } from './types'
 import {
   conflictsFor,
   findNextAvailableSlot,
+  type SchedulingOptions,
 } from './scheduling'
 
 export type ReplanProposal = {
@@ -33,11 +34,13 @@ function toProposal(
   event: PlannerEvent,
   events: PlannerEvent[],
   reason: ReplanProposal['reason'],
+  options: SchedulingOptions,
 ): ReplanProposal | null {
   const slot =
     findNextAvailableSlot(
       event,
       events,
+      options,
     )
 
   if (!slot) return null
@@ -59,6 +62,7 @@ function toProposal(
 export function proposeConflictReplan(
   event: PlannerEvent,
   events: PlannerEvent[],
+  options: SchedulingOptions = {},
 ): ReplanProposal | null {
   const conflicts =
     conflictsFor(
@@ -77,6 +81,7 @@ export function proposeConflictReplan(
       event,
       events,
       'move-current-flexible',
+      options,
     )
   }
 
@@ -98,5 +103,6 @@ export function proposeConflictReplan(
     conflicts[0],
     events,
     'move-conflicting-flexible',
+    options,
   )
 }

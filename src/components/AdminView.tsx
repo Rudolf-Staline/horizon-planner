@@ -17,6 +17,8 @@ import {
   listAdminUsers,
   loadAdminStats,
   loadAdminUserOverview,
+  loadAdminAuditLog,
+  type AdminAuditEntry,
   type AdminStats,
   type AdminUser,
   type AdminUserOverview,
@@ -49,6 +51,7 @@ export function AdminView() {
     useState<AdminUserOverview | null>(null)
   const [overviewLoading, setOverviewLoading] =
     useState(false)
+  const [auditEntries, setAuditEntries] = useState<AdminAuditEntry[]>([])
 
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -59,13 +62,15 @@ export function AdminView() {
     setError(null)
 
     try {
-      const [usersResult, statsResult] = await Promise.all([
+      const [usersResult, statsResult, auditResult] = await Promise.all([
         listAdminUsers(),
         loadAdminStats(),
+        loadAdminAuditLog(),
       ])
 
       setUsers(usersResult.users)
       setStats(statsResult)
+      setAuditEntries(auditResult)
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -246,6 +251,11 @@ export function AdminView() {
             Créer le compte
           </button>
         </div>
+      </section>
+
+      <section className="admin-panel">
+        <div className="admin-panel-head"><div><h2>Journal d’administration</h2><p>Les opérations sensibles sont conservées avec leur acteur et leur cible.</p></div><ShieldCheck size={20}/></div>
+        {auditEntries.length === 0 ? <p className="admin-muted">Aucune opération enregistrée.</p> : <div className="admin-data-list">{auditEntries.map((entry) => <article key={entry.id}><div><strong>{entry.action}</strong><span>{entry.actorUserId ?? 'Compte supprimé'}{entry.targetUserId ? ` → ${entry.targetUserId}` : ''}</span></div><time>{formatDate(entry.createdAt)}</time></article>)}</div>}
       </section>
 
       <section className="admin-panel">

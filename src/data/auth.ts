@@ -94,6 +94,30 @@ export async function updatePassword(password: string) {
   if (error) throw error
 }
 
+export async function updateEmail(email: string) {
+  const client = requireSupabase()
+  const { error } = await client.auth.updateUser({ email })
+  if (error) throw error
+}
+
+async function invokeAccountAction(action: 'delete_own_account' | 'sign_out_all') {
+  const client = requireSupabase()
+  const { data, error } = await client.functions.invoke('admin-api', { body: { action } })
+  if (error) throw error
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+export async function deleteOwnAccount() {
+  await invokeAccountAction('delete_own_account')
+  if (supabase) await supabase.auth.signOut({ scope: 'local' })
+}
+
+export async function signOutEverywhere() {
+  await invokeAccountAction('sign_out_all')
+  if (supabase) await supabase.auth.signOut({ scope: 'local' })
+}
+
 export async function signOut() {
   if (!supabase) return
 

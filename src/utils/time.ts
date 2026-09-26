@@ -2,7 +2,7 @@ import { END_MIN, SNAP_MINUTES, START_MIN } from '../domain/constants'
 
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 
-export const snapMinutes = (minutes: number) => Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES
+export const snapMinutes = (minutes: number, step = SNAP_MINUTES) => Math.round(minutes / step) * step
 
 export const formatTime = (minutes: number) => {
   const h = Math.floor(minutes / 60)

@@ -15,6 +15,7 @@ export type PlannerEntityType = 'task' | 'calendar' | 'routine'
 export interface PlannerEvent {
   id: string
   title: string
+  notes?: string
   /**
    * Concrete local calendar date (YYYY-MM-DD).
    * day remains the Monday-based weekday index used by the weekly planner.

@@ -33,11 +33,11 @@ export function addYears(date: Date, amount: number) {
   return next
 }
 
-export function startOfWeek(date: Date) {
+export function startOfWeek(date: Date, weekStartsOn = 1) {
   const next = new Date(date)
   const jsDay = next.getDay()
-  const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay
-  next.setDate(next.getDate() + mondayOffset)
+  const offset = (jsDay - weekStartsOn + 7) % 7
+  next.setDate(next.getDate() - offset)
   next.setHours(12, 0, 0, 0)
   return next
 }
@@ -47,8 +47,8 @@ export function weekdayIndex(date: Date) {
   return jsDay === 0 ? 6 : jsDay - 1
 }
 
-export function weekDates(anchor: Date) {
-  const start = startOfWeek(anchor)
+export function weekDates(anchor: Date, weekStartsOn = 1) {
+  const start = startOfWeek(anchor, weekStartsOn)
   return Array.from({ length: 7 }, (_, index) =>
     addDays(start, index)
   )
@@ -57,8 +57,9 @@ export function weekDates(anchor: Date) {
 export function dateForWeekday(
   sourceDate: string,
   day: number,
+  weekStartsOn = 1,
 ) {
-  const start = startOfWeek(fromISODate(sourceDate))
+  const start = startOfWeek(fromISODate(sourceDate), weekStartsOn)
   return toISODate(addDays(start, day))
 }
 
@@ -84,8 +85,8 @@ export function formatLongDate(date: Date) {
   }).format(date)
 }
 
-export function formatWeekRange(anchor: Date) {
-  const dates = weekDates(anchor)
+export function formatWeekRange(anchor: Date, weekStartsOn = 1) {
+  const dates = weekDates(anchor, weekStartsOn)
   const first = dates[0]
   const last = dates[6]
 
@@ -121,14 +122,14 @@ export function formatYear(date: Date) {
   return String(date.getFullYear())
 }
 
-export function monthGridDates(anchor: Date) {
+export function monthGridDates(anchor: Date, weekStartsOn = 1) {
   const first = new Date(
     anchor.getFullYear(),
     anchor.getMonth(),
     1,
     12,
   )
-  const start = startOfWeek(first)
+  const start = startOfWeek(first, weekStartsOn)
   return Array.from({ length: 42 }, (_, index) =>
     addDays(start, index)
   )

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   Cloud,
+  Mail,
   KeyRound,
   LogOut,
   ShieldCheck,
@@ -9,7 +10,7 @@ import {
 } from 'lucide-react'
 import type { CloudStatus } from '../state/planner'
 import type { UserRole } from '../data/profile'
-import { signOut, updatePassword } from '../data/auth'
+import { deleteOwnAccount, signOut, signOutEverywhere, updateEmail, updatePassword } from '../data/auth'
 import { updateDisplayName } from '../data/profile'
 
 interface Props {
@@ -34,6 +35,7 @@ export function AccountDialog({
   const [name, setName] = useState(displayName ?? '')
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
+  const [email, setEmail] = useState(userEmail ?? '')
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -99,6 +101,21 @@ export function AccountDialog({
     }
   }
 
+  const saveEmail = async () => {
+    const normalized = email.trim().toLowerCase()
+    if (!normalized || normalized === userEmail || busy) return
+    setBusy(true)
+    clearMessages()
+    try {
+      await updateEmail(normalized)
+      setNotice('Un courriel de confirmation a été envoyé à la nouvelle adresse.')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Impossible de modifier l’adresse e-mail.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const logout = async () => {
     setBusy(true)
     clearMessages()
@@ -112,6 +129,34 @@ export function AccountDialog({
           ? cause.message
           : 'Déconnexion impossible.',
       )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const logoutEverywhere = async () => {
+    if (!window.confirm('Déconnecter toutes les sessions de ce compte ?')) return
+    setBusy(true)
+    clearMessages()
+    try {
+      await signOutEverywhere()
+      onClose()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Impossible de fermer les autres sessions.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteAccount = async () => {
+    if (!window.confirm('Cette action supprimera définitivement votre compte et toutes ses données Horizon. Continuer ?')) return
+    setBusy(true)
+    clearMessages()
+    try {
+      await deleteOwnAccount()
+      onClose()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Impossible de supprimer le compte.')
     } finally {
       setBusy(false)
     }
@@ -166,6 +211,11 @@ export function AccountDialog({
         </div>
 
         <div className="account-settings-grid">
+          <section className="account-setting">
+            <div className="account-setting-title"><Mail size={17}/><strong>Adresse e-mail</strong></div>
+            <label><span>Nouvelle adresse</span><input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)}/></label>
+            <button className="btn secondary" disabled={busy || !email.trim() || email.trim().toLowerCase() === userEmail} onClick={() => void saveEmail()}>Modifier l’adresse</button>
+          </section>
           <section className="account-setting">
             <div className="account-setting-title">
               <UserRound size={17}/>
@@ -237,6 +287,8 @@ export function AccountDialog({
             <LogOut size={16}/>
             Se déconnecter
           </button>
+          <button className="account-session-action" disabled={busy} onClick={() => void logoutEverywhere()}>Déconnecter tous les appareils</button>
+          <button className="account-delete-action" disabled={busy} onClick={() => void deleteAccount()}>Supprimer mon compte</button>
         </div>
 
         {notice && (

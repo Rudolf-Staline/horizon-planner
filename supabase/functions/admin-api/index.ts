@@ -94,6 +94,32 @@ async function assertAdmin(req: Request) {
   return user;
 }
 
+async function assertUser(req: Request) {
+  const authorization = req.headers.get("authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    throw new Response("Unauthorized", { status: 401 });
+  }
+
+  const token = authorization.slice("Bearer ".length);
+  const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: { user }, error } = await authClient.auth.getUser(token);
+  if (error || !user) throw new Response("Unauthorized", { status: 401 });
+  return user;
+}
+
+async function writeAudit(actorUserId: string, action: string, targetUserId?: string, metadata: Record<string, unknown> = {}) {
+  const { error } = await adminClient.from("admin_audit_log").insert({
+    actor_user_id: actorUserId,
+    action,
+    target_user_id: targetUserId ?? null,
+    metadata,
+  });
+  if (error) throw error;
+}
+
 async function countTable(table: string) {
   const { count, error } = await adminClient
     .from(table)
@@ -134,9 +160,25 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const admin = await assertAdmin(req);
     const body = await req.json().catch(() => ({}));
     const action = body?.action;
+
+    if (action === "delete_own_account" || action === "sign_out_all") {
+      const user = await assertUser(req);
+
+      if (action === "sign_out_all") {
+        const { error } = await adminClient.auth.admin.signOut(user.id, "global");
+        if (error) throw error;
+        return json(req, { ok: true });
+      }
+
+      await writeAudit(user.id, "account.delete_self", user.id);
+      const { error } = await adminClient.auth.admin.deleteUser(user.id);
+      if (error) throw error;
+      return json(req, { ok: true });
+    }
+
+    const admin = await assertAdmin(req);
 
     if (action === "list_users") {
       const page = Math.max(1, Number(body.page) || 1);
@@ -326,6 +368,8 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
 
+      await writeAudit(admin.id, "admin.create_user", data.user.id, { email });
+
       return json(req, {
         userId: data.user.id,
       });
@@ -362,6 +406,7 @@ Deno.serve(async (req) => {
         .eq("id", targetUserId);
 
       if (error) throw error;
+      await writeAudit(admin.id, "admin.set_role", targetUserId, { role });
       return json(req, { ok: true });
     }
 
@@ -400,6 +445,7 @@ Deno.serve(async (req) => {
         );
 
       if (error) throw error;
+      await writeAudit(admin.id, action === "ban_user" ? "admin.ban_user" : "admin.unban_user", targetUserId);
       return json(req, { ok: true });
     }
 
@@ -429,6 +475,7 @@ Deno.serve(async (req) => {
         );
 
       if (error) throw error;
+      await writeAudit(admin.id, "admin.delete_user", targetUserId);
       return json(req, { ok: true });
     }
 
@@ -457,6 +504,16 @@ Deno.serve(async (req) => {
         calendarEvents,
         plannedSegments,
       });
+    }
+
+    if (action === "audit_log") {
+      const { data, error } = await adminClient
+        .from("admin_audit_log")
+        .select("id,actor_user_id,action,target_user_id,metadata,created_at")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return json(req, { entries: data ?? [] });
     }
 
     return json(req, { error: "Action inconnue." }, 400);

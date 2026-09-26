@@ -7,6 +7,14 @@ import {
 } from '../utils/date'
 import type { EnergyLevel, Placement, PlannerEvent, Priority } from './types'
 
+export type SchedulingOptions = {
+  startMin?: number
+  endMin?: number
+  activeDays?: number[]
+  bufferMin?: number
+  planningStepMin?: number
+}
+
 export function overlaps(
   a: Pick<PlannerEvent, 'date' | 'day' | 'startMin' | 'durationMin'>,
   b: Pick<PlannerEvent, 'date' | 'day' | 'startMin' | 'durationMin'>,
@@ -74,7 +82,9 @@ export function scorePlacement(
     Placement,
     'day' | 'date' | 'startMin'
   >,
+  options: SchedulingOptions = {},
 ) {
+  const planningStepMin = options.planningStepMin ?? SNAP_MINUTES
   const dayDistance =
     event.date && placement.date
       ? Math.max(
@@ -93,7 +103,7 @@ export function scorePlacement(
     Math.abs(
       placement.startMin -
         event.startMin,
-    ) / SNAP_MINUTES
+    ) / planningStepMin
 
   const daysLeftAfterPlacement =
     event.deadlineDate &&
@@ -131,15 +141,15 @@ function validDayRange(event: PlannerEvent) {
   return { first, last }
 }
 
-function dailyBounds(event: PlannerEvent) {
+function dailyBounds(event: PlannerEvent, options: SchedulingOptions) {
   return {
     start: Math.max(
-      START_MIN,
-      event.windowStartMin ?? START_MIN,
+      options.startMin ?? START_MIN,
+      event.windowStartMin ?? options.startMin ?? START_MIN,
     ),
     end: Math.min(
-      END_MIN,
-      event.windowEndMin ?? END_MIN,
+      options.endMin ?? END_MIN,
+      event.windowEndMin ?? options.endMin ?? END_MIN,
     ),
   }
 }
@@ -148,22 +158,25 @@ export function findCandidatePlacements(
   event: PlannerEvent,
   events: PlannerEvent[],
   durationMin = event.durationMin,
+  options: SchedulingOptions = {},
 ): Placement[] {
+  const planningStepMin = options.planningStepMin ?? SNAP_MINUTES
   const {
     start: windowStart,
     end: windowEnd,
-  } = dailyBounds(event)
+  } = dailyBounds(event, options)
   const candidates: Placement[] = []
 
   const addCandidates = (
     day: number,
     date?: string,
   ) => {
+    if (options.activeDays && !options.activeDays.includes(day)) return
     for (
       let startMin = windowStart;
       startMin + durationMin <=
         windowEnd;
-      startMin += SNAP_MINUTES
+      startMin += planningStepMin
     ) {
       const candidate: PlannerEvent = {
         ...event,
@@ -173,9 +186,16 @@ export function findCandidatePlacements(
         durationMin,
       }
 
+      const bufferMin = options.bufferMin ?? 0
+      const bufferedCandidate = {
+        ...candidate,
+        startMin: Math.max(0, candidate.startMin - bufferMin),
+        durationMin: candidate.durationMin + bufferMin * 2,
+      }
+
       if (
         conflictsFor(
-          candidate,
+          bufferedCandidate,
           events,
         ).length > 0
       ) {
@@ -194,6 +214,7 @@ export function findCandidatePlacements(
             date,
             startMin,
           },
+          options,
         ),
       })
     }
@@ -298,16 +319,18 @@ export function findCandidatePlacements(
 export function findBestPlacement(
   event: PlannerEvent,
   events: PlannerEvent[],
+  options: SchedulingOptions = {},
 ) {
   if (event.kind !== 'flexible') return null
-  return findCandidatePlacements(event, events)[0] ?? null
+  return findCandidatePlacements(event, events, event.durationMin, options)[0] ?? null
 }
 
 export function findNextAvailableSlot(
   event: PlannerEvent,
   events: PlannerEvent[],
+  options: SchedulingOptions = {},
 ) {
-  const placement = findBestPlacement(event, events)
+  const placement = findBestPlacement(event, events, options)
   return placement
     ? {
         date: placement.date,
@@ -320,11 +343,13 @@ export function findNextAvailableSlot(
 export function planSplitTask(
   event: PlannerEvent,
   events: PlannerEvent[],
+  options: SchedulingOptions = {},
 ): Placement[] | null {
   if (!event.splittable || event.kind !== 'flexible') return null
 
+  const planningStepMin = options.planningStepMin ?? SNAP_MINUTES
   const minChunk = Math.max(
-    SNAP_MINUTES,
+    planningStepMin,
     event.minChunkMin ?? 30,
   )
   let remaining = event.durationMin
@@ -338,10 +363,10 @@ export function planSplitTask(
     for (
       let chunk = targetChunk;
       chunk >= Math.min(minChunk, remaining);
-      chunk -= SNAP_MINUTES
+      chunk -= planningStepMin
     ) {
       const candidate =
-        findCandidatePlacements(event, blocked, chunk)[0]
+        findCandidatePlacements(event, blocked, chunk, options)[0]
 
       if (candidate) {
         selected = candidate
@@ -355,6 +380,7 @@ export function planSplitTask(
           event,
           blocked,
           remaining,
+          options,
         )[0] ?? null
     }
 
@@ -378,10 +404,11 @@ export function planSplitTask(
 export function planFlexibleTask(
   event: PlannerEvent,
   events: PlannerEvent[],
+  options: SchedulingOptions = {},
 ) {
   if (event.kind !== 'flexible') return null
 
-  const whole = findBestPlacement(event, events)
+  const whole = findBestPlacement(event, events, options)
   if (whole) {
     return {
       kind: 'single' as const,
@@ -389,7 +416,7 @@ export function planFlexibleTask(
     }
   }
 
-  const split = planSplitTask(event, events)
+  const split = planSplitTask(event, events, options)
   if (split) {
     return {
       kind: 'split' as const,

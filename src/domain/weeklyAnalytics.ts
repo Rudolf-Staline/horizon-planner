@@ -10,8 +10,9 @@ import {
 export function buildWeeklyAnalytics(
   events: PlannerEvent[],
   anchor: Date,
+  weekStartsOn = 1,
 ) {
-  const dates = weekDates(anchor)
+  const dates = weekDates(anchor, weekStartsOn)
   const weekDateSet =
     new Set(
       dates.map(toISODate),
@@ -26,6 +27,11 @@ export function buildWeeklyAnalytics(
           event.date!,
         ),
     )
+
+  const weekEvents = events.filter((event) => Boolean(event.date) && weekDateSet.has(event.date!))
+  const completed = weekEvents.filter((event) => event.completed)
+  const plannedMinutes = weekEvents.reduce((sum, event) => sum + event.durationMin, 0)
+  const completedMinutes = completed.reduce((sum, event) => sum + event.durationMin, 0)
 
   const totalMinutes =
     active.reduce(
@@ -121,6 +127,9 @@ export function buildWeeklyAnalytics(
     totalMinutes,
     focusMinutes,
     routineMinutes,
+    plannedMinutes,
+    completedMinutes,
+    completionRate: plannedMinutes > 0 ? Math.round((completedMinutes / plannedMinutes) * 100) : 0,
     byDay,
     max,
     busiest,

@@ -26,6 +26,9 @@ interface Props {
   selected: boolean
   onSelect: () => void
   onChange: (patch: Partial<PlannerEvent>) => void
+  startMin?: number
+  endMin?: number
+  planningStepMin?: number
 }
 
 type Gesture = CalendarGestureOrigin
@@ -39,6 +42,9 @@ export function EventCard({
   selected,
   onSelect,
   onChange,
+  startMin = START_MIN,
+  endMin = END_MIN,
+  planningStepMin = SNAP_MINUTES,
 }: Props) {
   const [preview, setPreview] =
     useState<Partial<PlannerEvent> | null>(null)
@@ -159,6 +165,11 @@ export function EventCard({
         },
         columnWidth,
         maxDay,
+        {
+          startMin,
+          endMin,
+          planningStepMin,
+        },
       ),
     )
   }
@@ -210,10 +221,10 @@ export function EventCard({
           : -1
       onChange({
         durationMin: clamp(
-          event.durationMin +
-            direction * SNAP_MINUTES,
-          SNAP_MINUTES,
-          END_MIN - event.startMin,
+            event.durationMin +
+            direction * planningStepMin,
+          planningStepMin,
+          endMin - event.startMin,
         ),
       })
       return
@@ -243,10 +254,10 @@ export function EventCard({
         : -1
     onChange({
       startMin: clamp(
-        event.startMin +
-          direction * SNAP_MINUTES,
-        START_MIN,
-        END_MIN - event.durationMin,
+          event.startMin +
+          direction * planningStepMin,
+        startMin,
+        endMin - event.durationMin,
       ),
     })
   }
@@ -276,7 +287,7 @@ export function EventCard({
     setDragging(false)
   }
 
-  const top = (live.startMin - START_MIN) * PX_PER_MIN
+  const top = (live.startMin - startMin) * PX_PER_MIN
   const height = Math.max(live.durationMin * PX_PER_MIN, 34)
   const usableWidth =
     Math.max(24, columnWidth - 8)

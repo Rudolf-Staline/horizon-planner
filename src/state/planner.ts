@@ -2,12 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
 import { conflictsFor } from '../domain/scheduling'
 import { proposeConflictReplan } from '../domain/replanning'
+import type { SchedulingOptions } from '../domain/scheduling'
 import { currentCloudUser } from '../data/auth'
 import {
   loadOwnProfile,
   syncProfileTimezone,
   type UserRole,
 } from '../data/profile'
+import {
+  DEFAULT_PLANNER_PREFERENCES,
+  type PlannerPreferences,
+} from '../domain/preferences'
 import { supabase } from '../lib/supabase'
 import {
   loadNormalizedPlanner,
@@ -195,6 +200,7 @@ function migratePlannerIdentity(
 
 const TASK_METADATA_KEYS = [
   'title',
+  'notes',
   'category',
   'projectId',
   'priority',
@@ -241,6 +247,7 @@ export function usePlanner() {
   const [cloudUserEmail, setCloudUserEmail] = useState<string | null>(null)
   const [cloudDisplayName, setCloudDisplayName] = useState<string | null>(null)
   const [cloudUserRole, setCloudUserRole] = useState<UserRole>('user')
+  const [cloudPreferences, setCloudPreferences] = useState<PlannerPreferences>(DEFAULT_PLANNER_PREFERENCES)
   const [authStatus, setAuthStatus] = useState<AuthStatus>(
     () => isRecoveryUrl() ? 'recovery' : 'loading',
   )
@@ -250,6 +257,7 @@ export function usePlanner() {
   const modifiedAtRef = useRef(0)
   const eventsRef = useRef<PlannerEvent[]>([])
   const cloudUserIdRef = useRef<string | null>(null)
+  const realtimeChannelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null)
   const skipNextCloudPushRef = useRef(false)
   const recoveryRef = useRef(isRecoveryUrl())
 
@@ -263,6 +271,10 @@ export function usePlanner() {
     }
 
     cloudUserIdRef.current = null
+    if (realtimeChannelRef.current && supabase) {
+      void supabase.removeChannel(realtimeChannelRef.current)
+      realtimeChannelRef.current = null
+    }
     modifiedAtRef.current = 0
     eventsRef.current = []
     undoStack.current = []
@@ -276,6 +288,7 @@ export function usePlanner() {
     setCloudUserEmail(null)
     setCloudDisplayName(null)
     setCloudUserRole('user')
+    setCloudPreferences(DEFAULT_PLANNER_PREFERENCES)
   }
 
   useEffect(() => {
@@ -319,17 +332,15 @@ export function usePlanner() {
 
         let normalizedReadFailed = false
 
-        const [normalized, profile] = await Promise.all([
-          loadNormalizedPlanner(user.id).catch(() => {
-            normalizedReadFailed = true
-            return null
-          }),
-          loadOwnProfile(user.id).catch(() => null),
-          browserTimezone
-            ? syncProfileTimezone(user.id, browserTimezone)
-                .catch(() => undefined)
-            : Promise.resolve(),
-        ])
+        const profile = await loadOwnProfile(user.id).catch(() => null)
+        const timeZone = profile?.preferences.timezone || browserTimezone || 'UTC'
+        const normalized = await loadNormalizedPlanner(user.id, timeZone).catch(() => {
+          normalizedReadFailed = true
+          return null
+        })
+        if (browserTimezone && !profile?.preferences.timezone) {
+          await syncProfileTimezone(user.id, browserTimezone).catch(() => undefined)
+        }
 
         if (cancelled) return
 
@@ -340,6 +351,10 @@ export function usePlanner() {
             null,
         )
         setCloudUserRole(profile?.role ?? 'user')
+        setCloudPreferences(profile?.preferences ?? {
+          ...DEFAULT_PLANNER_PREFERENCES,
+          timezone: browserTimezone || DEFAULT_PLANNER_PREFERENCES.timezone,
+        })
 
         const local = loadLocalSnapshot(user.id)
 
@@ -400,10 +415,7 @@ export function usePlanner() {
           shouldPush &&
           !normalizedReadFailed
         ) {
-          await syncNormalizedPlanner(
-            user.id,
-            nextEvents,
-          )
+          await syncNormalizedPlanner(user.id, nextEvents, timeZone)
         }
 
         if (cancelled) return
@@ -416,6 +428,64 @@ export function usePlanner() {
             : 'synced',
         )
         setAuthStatus('authenticated')
+
+        if (
+          supabase &&
+          realtimeChannelRef.current === null
+        ) {
+          const channel = supabase
+            .channel(`planner-${user.id}`)
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'tasks',
+                filter: `user_id=eq.${user.id}`,
+              },
+              () => {
+                if (!cancelled) void reconcile(user)
+              },
+            )
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'planned_segments',
+                filter: `user_id=eq.${user.id}`,
+              },
+              () => {
+                if (!cancelled) void reconcile(user)
+              },
+            )
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'calendar_events',
+                filter: `user_id=eq.${user.id}`,
+              },
+              () => {
+                if (!cancelled) void reconcile(user)
+              },
+            )
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'profiles',
+                filter: `id=eq.${user.id}`,
+              },
+              () => {
+                if (!cancelled) void reconcile(user)
+              },
+            )
+            .subscribe()
+          realtimeChannelRef.current = channel
+        }
       } catch {
         if (cancelled) return
 
@@ -444,6 +514,10 @@ export function usePlanner() {
     return () => {
       cancelled = true
       subscription.unsubscribe()
+      if (realtimeChannelRef.current && supabase) {
+        void supabase.removeChannel(realtimeChannelRef.current)
+        realtimeChannelRef.current = null
+      }
     }
   }, [])
 
@@ -469,6 +543,7 @@ export function usePlanner() {
         await syncNormalizedPlanner(
           userId,
           events,
+          cloudPreferences.timezone,
         )
         setCloudStatus('synced')
       } catch {
@@ -477,7 +552,7 @@ export function usePlanner() {
     }, 650)
 
     return () => window.clearTimeout(timer)
-  }, [events, authStatus])
+  }, [events, authStatus, cloudPreferences.timezone])
 
   const selected = useMemo(
     () => events.find((event) => event.id === selectedId) ?? null,
@@ -520,9 +595,22 @@ export function usePlanner() {
         ? proposeConflictReplan(
             conflictEvent,
             events,
+            {
+              startMin: cloudPreferences.workdayStartMin,
+              endMin: cloudPreferences.workdayEndMin,
+              activeDays: cloudPreferences.activeDays,
+              bufferMin: cloudPreferences.bufferMin,
+              planningStepMin: cloudPreferences.planningStepMin,
+            } satisfies SchedulingOptions,
           )
         : null,
-    [conflictEvent, events],
+    [
+      conflictEvent,
+      events,
+      cloudPreferences.workdayStartMin,
+      cloudPreferences.workdayEndMin,
+      cloudPreferences.planningStepMin,
+    ],
   )
 
   const replaceEvents = (next: PlannerEvent[]) => {
@@ -810,6 +898,8 @@ export function usePlanner() {
     cloudDisplayName,
     setCloudDisplayName,
     cloudUserRole,
+    cloudPreferences,
+    setCloudPreferences,
     authStatus,
   }
 }

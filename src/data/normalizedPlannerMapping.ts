@@ -10,25 +10,12 @@ import {
   dateForWeekday,
   fromISODate,
 } from '../utils/date'
+import { localDateTimeToIso } from '../utils/timezone'
 
 export type ExistingTaskState = {
   id: string
   status: string
   completed_at: string | null
-}
-
-function localDateTimeToIso(
-  date: string,
-  minutes: number,
-) {
-  const local = fromISODate(date)
-  local.setHours(
-    Math.floor(minutes / 60),
-    minutes % 60,
-    0,
-    0,
-  )
-  return local.toISOString()
 }
 
 function timeValue(
@@ -55,6 +42,7 @@ export function buildNormalizedPlannerRows(
     Map<string, ExistingTaskState>,
   nowIso = () =>
     new Date().toISOString(),
+  timeZone = 'UTC',
 ) {
   const calendarEvents =
     events.filter(
@@ -93,7 +81,7 @@ export function buildNormalizedPlannerRows(
             baseTaskTitle(
               primary.title,
             ),
-          notes: null,
+          notes: primary.notes ?? null,
           category:
             primary.category,
           priority:
@@ -160,12 +148,14 @@ export function buildNormalizedPlannerRows(
                   localDateTimeToIso(
                     event.date!,
                     event.startMin,
+                    timeZone,
                   ),
                 ends_at:
                   localDateTimeToIso(
                     event.date!,
                     event.startMin +
                       event.durationMin,
+                    timeZone,
                   ),
                 segment_index:
                   event.segmentIndex ??
@@ -275,12 +265,14 @@ export function buildNormalizedPlannerRows(
             localDateTimeToIso(
               event.date!,
               event.startMin,
+              timeZone,
             ),
           ends_at:
             localDateTimeToIso(
               event.date!,
               event.startMin +
                 event.durationMin,
+              timeZone,
             ),
           locked:
             Boolean(

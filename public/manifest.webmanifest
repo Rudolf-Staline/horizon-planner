@@ -1,0 +1,11 @@
+{
+  "name": "Horizon Planner",
+  "short_name": "Horizon",
+  "description": "Planifiez votre temps avec clarté.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f9fc",
+  "theme_color": "#0b1746",
+  "lang": "fr-FR",
+  "icons": [{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

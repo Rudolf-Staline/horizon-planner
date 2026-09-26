@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import {
-  END_MIN,
   PX_PER_MIN,
-  START_MIN,
 } from '../domain/constants'
 import type { PlannerEvent } from '../domain/types'
 import { layoutCalendarLanes } from '../domain/calendarLayout'
@@ -29,6 +27,7 @@ import { clamp, snapMinutes } from '../utils/time'
 import { EventCard } from './EventCard'
 import { InlineQuickCreate } from './InlineQuickCreate'
 import type { InlineTaskDraft } from '../domain/quickCreate'
+import { DEFAULT_PLANNER_PREFERENCES } from '../domain/preferences'
 
 export type CalendarMode = 'day' | 'week' | 'month' | 'year'
 
@@ -52,9 +51,11 @@ interface Props {
   ) => void
   onDraftSubmit: (title: string) => void
   onDraftCancel: () => void
+  weekStartsOn?: number
+  workdayStartMin?: number
+  workdayEndMin?: number
+  planningStepMin?: number
 }
-
-const HOUR_COUNT = 16
 
 function eventsOnDate(
   events: PlannerEvent[],
@@ -79,14 +80,22 @@ export function CalendarView({
   onEmptyClick,
   onDraftSubmit,
   onDraftCancel,
+  weekStartsOn = DEFAULT_PLANNER_PREFERENCES.weekStartsOn,
+  workdayStartMin = DEFAULT_PLANNER_PREFERENCES.workdayStartMin,
+  workdayEndMin = DEFAULT_PLANNER_PREFERENCES.workdayEndMin,
+  planningStepMin = DEFAULT_PLANNER_PREFERENCES.planningStepMin,
 }: Props) {
   const anchor = fromISODate(anchorDate)
   const today = new Date()
+  const firstHour = Math.floor(workdayStartMin / 60)
+  const lastHour = Math.ceil(workdayEndMin / 60)
   const hours = Array.from(
-    { length: HOUR_COUNT },
-    (_, index) => 7 + index,
+    { length: Math.max(1, lastHour - firstHour + 1) },
+    (_, index) => firstHour + index,
   )
-  const height = (END_MIN - START_MIN) * PX_PER_MIN
+  const startMin = workdayStartMin
+  const endMin = workdayEndMin
+  const height = (endMin - startMin) * PX_PER_MIN
   const [viewportWidth, setViewportWidth] =
     useState(() => window.innerWidth)
   const [hoverSlot, setHoverSlot] =
@@ -128,7 +137,7 @@ export function CalendarView({
     mode === 'day'
       ? formatLongDate(anchor)
       : mode === 'week'
-        ? formatWeekRange(anchor)
+        ? formatWeekRange(anchor, weekStartsOn)
         : mode === 'month'
           ? formatMonth(anchor)
           : formatYear(anchor)
@@ -137,7 +146,7 @@ export function CalendarView({
     const dates =
       mode === 'day'
         ? [anchor]
-        : weekDates(anchor)
+        : weekDates(anchor, weekStartsOn)
 
     const columnWidth =
       mode === 'day'
@@ -197,7 +206,7 @@ export function CalendarView({
                 key={hour}
                 style={{
                   top:
-                    (hour * 60 - START_MIN) *
+                    (hour * 60 - startMin) *
                     PX_PER_MIN,
                 }}
               >
@@ -234,15 +243,14 @@ export function CalendarView({
                   const y =
                     event.clientY -
                     rect.top
-                  const startMin =
+                  const slotStartMin =
                     clamp(
                       snapMinutes(
-                        START_MIN +
-                          y /
-                            PX_PER_MIN,
+                        workdayStartMin + y / PX_PER_MIN,
+                        planningStepMin,
                       ),
-                      START_MIN,
-                      END_MIN - 30,
+                      workdayStartMin,
+                      endMin - 30,
                     )
 
                   setHoverSlot({
@@ -250,7 +258,7 @@ export function CalendarView({
                       toISODate(
                         date,
                       ),
-                    startMin,
+                    startMin: slotStartMin,
                   })
                 }}
                 onPointerLeave={() =>
@@ -263,21 +271,20 @@ export function CalendarView({
                   const y =
                     event.clientY -
                     rect.top
-                  const startMin =
+                  const slotStartMin =
                     clamp(
                       snapMinutes(
-                        START_MIN +
-                          y /
-                            PX_PER_MIN,
+                        workdayStartMin + y / PX_PER_MIN,
+                        planningStepMin,
                       ),
-                      START_MIN,
-                      END_MIN - 30,
+                      workdayStartMin,
+                      endMin - 30,
                     )
 
                   onEmptyClick(
                     toISODate(date),
                     weekdayIndex(date),
-                    startMin,
+                    slotStartMin,
                   )
                   setHoverSlot(null)
                 }}
@@ -288,7 +295,7 @@ export function CalendarView({
                     className="hour-line"
                     style={{
                       top:
-                        (hour * 60 - START_MIN) *
+                        (hour * 60 - startMin) *
                         PX_PER_MIN,
                     }}
                   />
@@ -303,7 +310,7 @@ export function CalendarView({
                         top:
                           (
                             hoverSlot.startMin -
-                            START_MIN
+                            startMin
                           ) *
                           PX_PER_MIN,
                       }}
@@ -334,6 +341,7 @@ export function CalendarView({
                   columnWidth={columnWidth}
                   onSubmit={onDraftSubmit}
                   onCancel={onDraftCancel}
+                  startMin={startMin}
                 />
               )
             })()}
@@ -372,6 +380,9 @@ export function CalendarView({
                     day: weekdayIndex(targetDate),
                   })
                 }}
+                startMin={startMin}
+                endMin={endMin}
+                planningStepMin={planningStepMin}
               />
               )
             })}
@@ -390,7 +401,7 @@ export function CalendarView({
                 onEmptyClick(
                   toISODate(date),
                   weekdayIndex(date),
-                  13 * 60,
+                  Math.max(startMin, Math.min(endMin - 30, 13 * 60)),
                 )
               }}
             >
@@ -417,13 +428,16 @@ export function CalendarView({
   }
 
   const renderMonth = () => {
-    const dates = monthGridDates(anchor)
+    const dates = monthGridDates(anchor, weekStartsOn)
     const month = anchor.getMonth()
 
     return (
       <section className="month-view">
         <div className="month-weekdays">
-          {['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(
+          {Array.from({ length: 7 }, (_, index) => {
+            const labels = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam']
+            return labels[(weekStartsOn + index) % 7]
+          }).map(
             (label) => <span key={label}>{label}</span>,
           )}
         </div>
@@ -453,7 +467,7 @@ export function CalendarView({
                   onEmptyClick(
                     iso,
                     weekdayIndex(date),
-                    9 * 60,
+                    Math.max(startMin, Math.min(endMin - 30, 9 * 60)),
                   )
                 }}
               >

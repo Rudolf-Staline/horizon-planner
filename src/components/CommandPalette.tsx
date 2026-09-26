@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ArrowRight, Command, Sparkles, X } from 'lucide-react'
 import { parseQuickTask } from '../domain/naturalLanguage'
 import { START_MIN } from '../domain/constants'
-import { planFlexibleTask } from '../domain/scheduling'
+import { planFlexibleTask, type SchedulingOptions } from '../domain/scheduling'
 import type { PlannerEvent } from '../domain/types'
 import {
   eventDateLabel,
@@ -19,6 +19,8 @@ interface Props {
   contextDate: string
   onClose: () => void
   onCreate: (events: PlannerEvent[]) => void
+  schedulingOptions?: SchedulingOptions
+  defaultDurationMin?: number
 }
 
 export function CommandPalette({
@@ -26,6 +28,8 @@ export function CommandPalette({
   contextDate,
   onClose,
   onCreate,
+  schedulingOptions,
+  defaultDurationMin = 60,
 }: Props) {
   const [value, setValue] = useState('')
   const [error, setError] =
@@ -47,8 +51,9 @@ export function CommandPalette({
         value,
         contextDate,
         contextStartMin,
+        defaultDurationMin,
       ),
-    [value, contextDate],
+    [value, contextDate, contextStartMin, defaultDurationMin],
   )
 
   const draftPreview = useMemo(() => {
@@ -71,8 +76,9 @@ export function CommandPalette({
     return planFlexibleTask(
       draftPreview,
       events,
+      schedulingOptions,
     )
-  }, [draftPreview, events])
+  }, [draftPreview, events, schedulingOptions])
 
   const create = () => {
     if (!parsed) return
@@ -93,7 +99,7 @@ export function CommandPalette({
     }
 
     const resolved =
-      planFlexibleTask(draft, events)
+      planFlexibleTask(draft, events, schedulingOptions)
 
     if (!resolved) {
       setError(

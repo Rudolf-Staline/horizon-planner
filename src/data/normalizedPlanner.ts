@@ -1,21 +1,17 @@
 import type { PlannerEvent } from '../domain/types'
 import {
   fromISODate,
-  toISODate,
   weekdayIndex,
 } from '../utils/date'
 import {
   buildNormalizedPlannerRows,
 } from './normalizedPlannerMapping'
 import { supabase } from '../lib/supabase'
+import { zonedDateMinutes, zonedDateToIso } from '../utils/timezone'
 
 export type NormalizedPlannerSnapshot = {
   events: PlannerEvent[]
   modifiedAt: number
-}
-
-function minutesFromDate(date: Date) {
-  return date.getHours() * 60 + date.getMinutes()
 }
 
 function parseTimeValue(value: string | null) {
@@ -45,6 +41,7 @@ function maxTimestamp(
 
 export async function loadNormalizedPlanner(
   userId: string,
+  timeZone = 'UTC',
 ): Promise<NormalizedPlannerSnapshot | null> {
   if (!supabase) return null
 
@@ -57,7 +54,7 @@ export async function loadNormalizedPlanner(
     supabase
       .from('tasks')
       .select(
-        'id,project_id,title,category,priority,kind,duration_min,locked,status,updated_at',
+        'id,project_id,title,notes,category,priority,kind,duration_min,locked,status,updated_at',
       )
       .eq('user_id', userId),
     supabase
@@ -146,7 +143,7 @@ export async function loadNormalizedPlanner(
       const ends = new Date(
         segment.ends_at,
       )
-      const date = toISODate(starts)
+      const date = zonedDateToIso(starts, timeZone)
       const constraint =
         constraintByTask.get(task.id)
 
@@ -167,9 +164,10 @@ export async function loadNormalizedPlanner(
           segment.segment_index ?? index,
         segmentCount: taskSegments.length,
         title: task.title,
+        notes: task.notes ?? undefined,
         date,
-        day: weekdayIndex(starts),
-        startMin: minutesFromDate(starts),
+        day: weekdayIndex(fromISODate(date)),
+        startMin: zonedDateMinutes(starts, timeZone),
         durationMin: Math.max(
           15,
           Math.round(
@@ -221,9 +219,9 @@ export async function loadNormalizedPlanner(
       id: item.id,
       entityType: 'calendar',
       title: item.title,
-      date: toISODate(starts),
-      day: weekdayIndex(starts),
-      startMin: minutesFromDate(starts),
+      date: zonedDateToIso(starts, timeZone),
+      day: weekdayIndex(fromISODate(zonedDateToIso(starts, timeZone))),
+      startMin: zonedDateMinutes(starts, timeZone),
       durationMin: Math.max(
         15,
         Math.round(
@@ -263,6 +261,7 @@ export async function loadNormalizedPlanner(
 export async function syncNormalizedPlanner(
   userId: string,
   events: PlannerEvent[],
+  timeZone = 'UTC',
 ) {
   if (!supabase) return
 
@@ -322,6 +321,8 @@ export async function syncNormalizedPlanner(
       userId,
       events,
       existingTaskById,
+      undefined,
+      timeZone,
     )
 
   if (taskRows.length > 0) {

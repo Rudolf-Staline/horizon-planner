@@ -17,6 +17,7 @@ interface Props {
   columnWidth: number
   onSubmit: (title: string) => void
   onCancel: () => void
+  startMin?: number
 }
 
 export function InlineQuickCreate({
@@ -25,6 +26,7 @@ export function InlineQuickCreate({
   columnWidth,
   onSubmit,
   onCancel,
+  startMin = START_MIN,
 }: Props) {
   const [title, setTitle] =
     useState('')
@@ -46,7 +48,7 @@ export function InlineQuickCreate({
       style={{
         top:
           (draft.startMin -
-            START_MIN) *
+            startMin) *
           PX_PER_MIN,
         left:
           visibleDay *

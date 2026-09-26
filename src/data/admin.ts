@@ -50,6 +50,15 @@ export type AdminUserOverview = {
   }>
 }
 
+export type AdminAuditEntry = {
+  id: string
+  actorUserId: string | null
+  action: string
+  targetUserId: string | null
+  metadata: Record<string, unknown>
+  createdAt: string
+}
+
 async function invokeAdmin<T>(
   body: Record<string, unknown>,
 ): Promise<T> {
@@ -141,4 +150,16 @@ export async function loadAdminUserOverview(
     action: 'user_overview',
     userId,
   })
+}
+
+export async function loadAdminAuditLog() {
+  const result = await invokeAdmin<{ entries: Array<{ id: string; actor_user_id: string | null; action: string; target_user_id: string | null; metadata: Record<string, unknown>; created_at: string }> }>({ action: 'audit_log' })
+  return result.entries.map((entry): AdminAuditEntry => ({
+    id: entry.id,
+    actorUserId: entry.actor_user_id,
+    action: entry.action,
+    targetUserId: entry.target_user_id,
+    metadata: entry.metadata,
+    createdAt: entry.created_at,
+  }))
 }

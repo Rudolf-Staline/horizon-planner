@@ -16,6 +16,7 @@ export function buildInlineTask(
   draft: InlineTaskDraft,
   title: string,
   id: string = crypto.randomUUID(),
+  defaultDurationMin = 60,
 ): PlannerEvent {
   const deadline =
     addDays(
@@ -36,7 +37,7 @@ export function buildInlineTask(
     date: draft.date,
     day: draft.day,
     startMin: draft.startMin,
-    durationMin: 60,
+    durationMin: defaultDurationMin,
     category: 'neutral',
     priority: 'medium',
     kind: 'flexible',

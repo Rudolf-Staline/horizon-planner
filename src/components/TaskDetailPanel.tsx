@@ -51,6 +51,8 @@ export function TaskDetailPanel({
 }: Props) {
   const [title, setTitle] =
     useState(event.title)
+  const [notes, setNotes] =
+    useState(event.notes ?? '')
   const [date, setDate] =
     useState(event.date ?? toISODate(new Date()))
   const [time, setTime] =
@@ -117,6 +119,7 @@ export function TaskDetailPanel({
 
   useEffect(() => {
     setTitle(event.title)
+    setNotes(event.notes ?? '')
     setDate(event.date ?? toISODate(new Date()))
     setTime(formatTime(event.startMin))
     setDuration(event.durationMin)
@@ -213,6 +216,7 @@ export function TaskDetailPanel({
 
     onChange(event.id, {
       title: title.trim() || event.title,
+      notes: notes.trim() || undefined,
       date,
       day: weekdayIndex(nextDate),
       startMin: parseTime(
@@ -369,6 +373,16 @@ export function TaskDetailPanel({
             value={title}
             onChange={(event) =>
               setTitle(event.target.value)}
+          />
+        </label>
+
+        <label>
+          <span>Notes</span>
+          <textarea
+            value={notes}
+            rows={4}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Contexte, résultat attendu, ressources…"
           />
         </label>
 

@@ -16,6 +16,7 @@ import { NowView } from './components/NowView'
 import { Sidebar, type Section } from './components/Sidebar'
 import { TasksView } from './components/TasksView'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
+import { SettingsView } from './components/SettingsView'
 import { usePlanner } from './state/planner'
 import type { PlannerEvent } from './domain/types'
 import { buildInlineTask } from './domain/quickCreate'
@@ -90,6 +91,35 @@ export default function App() {
         setRoutineExceptions([])
       })
   }, [planner.cloudUserId])
+
+  useEffect(() => {
+    if (
+      planner.authStatus !== 'authenticated' ||
+      !planner.cloudPreferences.notificationsEnabled ||
+      typeof Notification === 'undefined' ||
+      Notification.permission !== 'granted'
+    ) return
+
+    const checkReminders = () => {
+      const now = Date.now()
+      const lead = planner.cloudPreferences.reminderLeadMin * 60_000
+      for (const event of planner.events) {
+        if (event.virtual || !event.date) continue
+        const starts = new Date(`${event.date}T00:00:00`)
+        starts.setMinutes(event.startMin)
+        const startMs = starts.getTime()
+        if (startMs < now || startMs - now > lead + 30_000) continue
+        const key = `horizon-reminder:${planner.cloudUserId}:${event.id}:${event.date}:${event.startMin}`
+        if (sessionStorage.getItem(key)) continue
+        new Notification(`Horizon · ${event.title}`, { body: `Commence dans ${planner.cloudPreferences.reminderLeadMin} min.` })
+        sessionStorage.setItem(key, '1')
+      }
+    }
+
+    checkReminders()
+    const timer = window.setInterval(checkReminders, 30_000)
+    return () => window.clearInterval(timer)
+  }, [planner.authStatus, planner.cloudPreferences, planner.cloudUserId, planner.events])
 
   useEffect(() => {
     if (!isAdmin && section === 'admin') {
@@ -365,9 +395,15 @@ export default function App() {
                   buildInlineTask(
                     quick,
                     title,
+                    crypto.randomUUID(),
+                    planner.cloudPreferences.defaultDurationMin,
                   ),
                 ])
               }}
+              weekStartsOn={planner.cloudPreferences.weekStartsOn}
+              workdayStartMin={planner.cloudPreferences.workdayStartMin}
+              workdayEndMin={planner.cloudPreferences.workdayEndMin}
+              planningStepMin={planner.cloudPreferences.planningStepMin}
             />
           )}
 
@@ -423,6 +459,17 @@ export default function App() {
         {section === 'analytics' && (
           <AnalyticsView
             events={analyticsEvents}
+            weekStartsOn={planner.cloudPreferences.weekStartsOn}
+          />
+        )}
+
+        {section === 'settings' && planner.cloudUserId && (
+          <SettingsView
+            userId={planner.cloudUserId}
+            preferences={planner.cloudPreferences}
+            events={planner.events}
+            onSaved={planner.setCloudPreferences}
+            onOpenAccount={() => setAccountOpen(true)}
           />
         )}
 
@@ -460,6 +507,14 @@ export default function App() {
         <CommandPalette
           events={planner.events}
           contextDate={anchorDate}
+          schedulingOptions={{
+            startMin: planner.cloudPreferences.workdayStartMin,
+            endMin: planner.cloudPreferences.workdayEndMin,
+            activeDays: planner.cloudPreferences.activeDays,
+            bufferMin: planner.cloudPreferences.bufferMin,
+            planningStepMin: planner.cloudPreferences.planningStepMin,
+          }}
+          defaultDurationMin={planner.cloudPreferences.defaultDurationMin}
           onClose={() =>
             setCommandOpen(false)
           }
