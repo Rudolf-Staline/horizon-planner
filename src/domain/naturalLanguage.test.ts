@@ -89,3 +89,15 @@ describe('parseQuickTask', () => {
     expect(parsed!.day).toBe(0)
   })
 })
+
+
+  it('defaults untimed flexible work to the planner day start', () => {
+    const parsed = parseQuickTask(
+      'Préparer le rapport 1h',
+      '2026-09-28',
+    )
+
+    expect(parsed).not.toBeNull()
+    expect(parsed!.kind).toBe('flexible')
+    expect(parsed!.startMin).toBe(7 * 60)
+  })

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, Command, Sparkles, X } from 'lucide-react'
 import { parseQuickTask } from '../domain/naturalLanguage'
+import { START_MIN } from '../domain/constants'
 import { planFlexibleTask } from '../domain/scheduling'
 import type { PlannerEvent } from '../domain/types'
 import {
@@ -42,7 +43,7 @@ export function CommandPalette({
             ) * 15,
           ),
         )
-      : 15 * 60
+      : START_MIN
 
   const parsed = useMemo(
     () =>

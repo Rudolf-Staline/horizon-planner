@@ -180,7 +180,7 @@ function cleanTitle(original: string) {
 export function parseQuickTask(
   input: string,
   contextDate = toISODate(new Date()),
-  contextStartMin = 15 * 60,
+  contextStartMin = START_MIN,
 ): ParsedTask | null {
   const original = input.trim()
   if (!original) return null

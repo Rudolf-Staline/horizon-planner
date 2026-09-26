@@ -232,3 +232,8 @@ Empty day/week slots now create in place instead of opening a modal. Hover revea
 ### Browser-level smoke coverage
 
 CI now launches Horizon in Chromium with Playwright. The browser suite verifies that the public entry keeps the planner locked when cloud configuration is absent and exercises the real calendar UI for inline create/commit/cancel behavior without using an authentication bypass or storing test credentials.
+
+
+### Neutral untimed planning
+
+Natural-language tasks without an explicit clock constraint no longer inherit a hidden 15:00 bias. Future-date commands begin from the planner day boundary, while same-day commands can still use the current rounded time as their context. Explicit times and windows continue to override this neutral default.
