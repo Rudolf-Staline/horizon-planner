@@ -18,6 +18,12 @@ import {
   isCalendarEntity,
   logicalTaskId,
 } from '../domain/taskIdentity'
+import {
+  deleteLogicalTask,
+  deletePlannerEvent,
+  toggleEventCompleted,
+  toggleLogicalTaskCompleted,
+} from '../domain/taskMutations'
 
 const LEGACY_STORAGE_KEY = 'horizon-planner-v1'
 const STORAGE_PREFIX = 'horizon-planner-v2'
@@ -650,113 +656,81 @@ export function usePlanner() {
   }
 
   const toggleCompleted = (id: string) => {
-    const next = events.map((event) =>
-      event.id === id
-        ? { ...event, completed: !event.completed }
-        : event
-    )
+    const next =
+      toggleEventCompleted(
+        events,
+        id,
+      )
 
-    commit(next)
+    if (next !== events) {
+      commit(next)
+    }
   }
 
   const toggleTaskCompleted = (id: string) => {
-    const target = events.find((event) => event.id === id)
-    if (!target) return
+    const next =
+      toggleLogicalTaskCompleted(
+        events,
+        id,
+      )
 
-    if (target.entityType !== 'task') {
-      toggleCompleted(id)
-      return
+    if (next !== events) {
+      commit(next)
     }
-
-    const taskId = logicalTaskId(target)
-    const siblings = events.filter(
-      (event) =>
-        event.entityType === 'task' &&
-        logicalTaskId(event) === taskId,
-    )
-    const nextCompleted =
-      !siblings.every((event) => Boolean(event.completed))
-
-    commit(
-      events.map((event) =>
-        event.entityType === 'task' &&
-        logicalTaskId(event) === taskId
-          ? { ...event, completed: nextCompleted }
-          : event,
-      ),
-    )
   }
 
   const deleteEvent = (id: string) => {
-    const target = events.find((event) => event.id === id)
-    if (!target) return
-
-    let next = events.filter((event) => event.id !== id)
-
-    if (target.entityType === 'task') {
-      const taskId = logicalTaskId(target)
-      const remaining = next
-        .filter(
-          (event) =>
-            event.entityType === 'task' &&
-            logicalTaskId(event) === taskId,
-        )
-        .sort(
-          (a, b) =>
-            (a.date ?? '').localeCompare(b.date ?? '') ||
-            a.startMin - b.startMin,
-        )
-
-      const indexById = new Map(
-        remaining.map((event, index) => [event.id, index]),
+    const next =
+      deletePlannerEvent(
+        events,
+        id,
       )
 
-      next = next.map((event) => {
-        const index = indexById.get(event.id)
-        if (index === undefined) return event
-
-        return {
-          ...event,
-          segmentIndex: index,
-          segmentCount: remaining.length,
-        }
-      })
-    }
+    if (next === events) return
 
     commit(next)
-    setSelectedId((current) => current === id ? null : current)
-    setLastConflictId((current) => current === id ? null : current)
+    setSelectedId((current) =>
+      current === id
+        ? null
+        : current,
+    )
+    setLastConflictId((current) =>
+      current === id
+        ? null
+        : current,
+    )
   }
 
   const deleteTask = (id: string) => {
-    const target = events.find((event) => event.id === id)
-    if (!target) return
+    const result =
+      deleteLogicalTask(
+        events,
+        id,
+      )
 
-    if (target.entityType !== 'task') {
-      deleteEvent(id)
+    if (
+      result.events === events
+    ) {
       return
     }
 
-    const taskId = logicalTaskId(target)
-    const removedIds = new Set(
-      events
-        .filter(
-          (event) =>
-            event.entityType === 'task' &&
-            logicalTaskId(event) === taskId,
-        )
-        .map((event) => event.id),
-    )
-
-    commit(
-      events.filter((event) => !removedIds.has(event.id)),
-    )
+    commit(result.events)
 
     setSelectedId((current) =>
-      current && removedIds.has(current) ? null : current,
+      current &&
+      result.removedIds.has(
+        current,
+      )
+        ? null
+        : current,
     )
     setLastConflictId((current) =>
-      current && removedIds.has(current) ? null : current,
+      current &&
+      result.removedIds.has(
+        current,
+      )
+        ? null
+        : current,
     )
   }
 

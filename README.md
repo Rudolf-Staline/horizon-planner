@@ -189,3 +189,8 @@ Domain-level integration tests now cover complete planning flows: natural-langua
 ### Lexical category boundaries
 
 Natural-language category inference now uses explicit word boundaries so short tokens such as `app` and `cours` do not accidentally classify unrelated verbs such as `appeler` or `courir`.
+
+
+### Tested task mutations
+
+Logical task completion and deletion are now pure domain operations rather than hook-local array manipulation. Tests cover completing/reopening every segment, deleting one segment with deterministic reindexing, deleting an entire logical task, preserving unrelated tasks, and missing-target no-ops.
