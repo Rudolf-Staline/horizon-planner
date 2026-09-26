@@ -93,3 +93,5 @@ button { color: inherit; }
   .legend{gap:11px 16px}
   .hint{font-size:10px;line-height:1.45}
 }
+
+.task-constraint-editor{border:1px solid var(--border);border-radius:12px;padding:14px;display:grid;gap:12px;background:#fff}.task-constraint-title{display:grid;gap:3px;padding-bottom:3px}.task-constraint-title strong{font-size:12px}.task-constraint-title span{font-size:10px;color:var(--muted);line-height:1.4}.task-constraint-editor>label{display:grid;gap:6px}.task-constraint-editor>label>span{font-size:11px;color:var(--muted)}.task-constraint-editor input[type="date"],.task-constraint-editor input[type="time"],.task-constraint-editor select{height:40px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--navy);padding:0 9px}.task-constraint-editor .task-detail-check{display:flex;align-items:center}.task-constraint-error{margin:0}

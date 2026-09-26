@@ -2,10 +2,15 @@ import { CheckCircle2, Layers3, Lock, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type {
   Category,
+  EnergyLevel,
   EventKind,
   PlannerEvent,
   Priority,
 } from '../domain/types'
+import {
+  END_MIN,
+  START_MIN,
+} from '../domain/constants'
 import { taskProgress } from '../domain/taskIdentity'
 import {
   fromISODate,
@@ -64,6 +69,32 @@ export function TaskDetailPanel({
     useState<EventKind>(event.kind)
   const [locked, setLocked] =
     useState(Boolean(event.locked))
+  const [deadlineDate, setDeadlineDate] =
+    useState(event.deadlineDate ?? '')
+  const [windowStart, setWindowStart] =
+    useState(
+      formatTime(
+        event.windowStartMin ?? START_MIN,
+      ),
+    )
+  const [windowEnd, setWindowEnd] =
+    useState(
+      formatTime(
+        event.windowEndMin ?? END_MIN,
+      ),
+    )
+  const [energy, setEnergy] =
+    useState<EnergyLevel>(
+      event.energy ?? 'medium',
+    )
+  const [splittable, setSplittable] =
+    useState(Boolean(event.splittable))
+  const [minChunkMin, setMinChunkMin] =
+    useState(event.minChunkMin ?? 45)
+  const [
+    constraintError,
+    setConstraintError,
+  ] = useState<string | null>(null)
 
   const multiSegment =
     event.entityType === 'task' &&
@@ -94,22 +125,151 @@ export function TaskDetailPanel({
     setProjectId(event.projectId ?? '')
     setKind(event.kind)
     setLocked(Boolean(event.locked))
-  }, [event])
+    setDeadlineDate(
+      event.deadlineDate ?? '',
+    )
+    setWindowStart(
+      formatTime(
+        event.windowStartMin ??
+          START_MIN,
+      ),
+    )
+    setWindowEnd(
+      formatTime(
+        event.windowEndMin ??
+          END_MIN,
+      ),
+    )
+    setEnergy(
+      event.energy ?? 'medium',
+    )
+    setSplittable(
+      Boolean(event.splittable) ||
+        segments.length > 1,
+    )
+    setMinChunkMin(
+      event.minChunkMin ?? 45,
+    )
+    setConstraintError(null)
+  }, [event, segments.length])
 
   const save = () => {
     const nextDate = fromISODate(date)
+    const isFlexibleTask =
+      event.entityType === 'task' &&
+      kind === 'flexible'
+
+    const latestTaskDate = [
+      date,
+      ...segments
+        .filter(
+          (segment) =>
+            segment.id !== event.id,
+        )
+        .map(
+          (segment) =>
+            segment.date,
+        )
+        .filter(
+          (value): value is string =>
+            Boolean(value),
+        ),
+    ].sort().at(-1) ?? date
+
+    const nextWindowStart =
+      parseTime(
+        windowStart,
+        START_MIN,
+      )
+    const nextWindowEnd =
+      parseTime(
+        windowEnd,
+        END_MIN,
+      )
+
+    if (
+      isFlexibleTask &&
+      deadlineDate &&
+      deadlineDate < latestTaskDate
+    ) {
+      setConstraintError(
+        'L’échéance ne peut pas précéder le dernier bloc déjà planifié.',
+      )
+      return
+    }
+
+    if (
+      isFlexibleTask &&
+      nextWindowEnd <=
+        nextWindowStart
+    ) {
+      setConstraintError(
+        'La fin de la fenêtre horaire doit être postérieure à son début.',
+      )
+      return
+    }
+
+    setConstraintError(null)
 
     onChange(event.id, {
       title: title.trim() || event.title,
       date,
       day: weekdayIndex(nextDate),
-      startMin: parseTime(time, event.startMin),
-      durationMin: Math.max(15, duration),
+      startMin: parseTime(
+        time,
+        event.startMin,
+      ),
+      durationMin: Math.max(
+        15,
+        duration,
+      ),
       category,
-      projectId: projectId || undefined,
+      projectId:
+        projectId || undefined,
       priority,
       kind,
       locked,
+      deadlineDate:
+        isFlexibleTask &&
+        deadlineDate
+          ? deadlineDate
+          : undefined,
+      deadlineDay:
+        isFlexibleTask &&
+        deadlineDate
+          ? weekdayIndex(
+              fromISODate(
+                deadlineDate,
+              ),
+            )
+          : undefined,
+      windowStartMin:
+        isFlexibleTask
+          ? nextWindowStart
+          : undefined,
+      windowEndMin:
+        isFlexibleTask
+          ? nextWindowEnd
+          : undefined,
+      energy:
+        isFlexibleTask
+          ? energy
+          : undefined,
+      splittable:
+        isFlexibleTask
+          ? (
+              multiSegment ||
+              splittable
+            )
+          : undefined,
+      minChunkMin:
+        isFlexibleTask &&
+        (
+          multiSegment ||
+          splittable
+        )
+          ? minChunkMin
+          : undefined,
     })
   }
 
@@ -331,6 +491,171 @@ export function TaskDetailPanel({
             </select>
           </label>
         </div>
+
+        {event.entityType === 'task' &&
+          kind === 'flexible' && (
+          <section className="task-constraint-editor">
+            <div className="task-constraint-title">
+              <strong>
+                Contraintes de planification
+              </strong>
+              <span>
+                {multiSegment
+                  ? 'Appliquées à toute la tâche'
+                  : 'Utilisées pour les propositions Horizon'}
+              </span>
+            </div>
+
+            <label>
+              <span>Échéance</span>
+              <input
+                type="date"
+                min={
+                  [
+                    date,
+                    ...segments
+                      .filter(
+                        (segment) =>
+                          segment.id !==
+                          event.id,
+                      )
+                      .map(
+                        (segment) =>
+                          segment.date,
+                      )
+                      .filter(
+                        (
+                          value,
+                        ): value is string =>
+                          Boolean(value),
+                      ),
+                  ]
+                    .sort()
+                    .at(-1) ?? date
+                }
+                value={deadlineDate}
+                onChange={(inputEvent) =>
+                  setDeadlineDate(
+                    inputEvent.target.value,
+                  )}
+              />
+            </label>
+
+            <div className="task-detail-row">
+              <label>
+                <span>Au plus tôt</span>
+                <input
+                  type="time"
+                  step={900}
+                  value={windowStart}
+                  onChange={(inputEvent) =>
+                    setWindowStart(
+                      inputEvent.target.value,
+                    )}
+                />
+              </label>
+
+              <label>
+                <span>Au plus tard</span>
+                <input
+                  type="time"
+                  step={900}
+                  value={windowEnd}
+                  onChange={(inputEvent) =>
+                    setWindowEnd(
+                      inputEvent.target.value,
+                    )}
+                />
+              </label>
+            </div>
+
+            <label>
+              <span>Niveau d’énergie</span>
+              <select
+                value={energy}
+                onChange={(inputEvent) =>
+                  setEnergy(
+                    inputEvent.target.value as
+                      EnergyLevel,
+                  )}
+              >
+                <option value="low">
+                  Faible
+                </option>
+                <option value="medium">
+                  Moyen
+                </option>
+                <option value="high">
+                  Élevé
+                </option>
+              </select>
+            </label>
+
+            <label className="task-detail-check">
+              <input
+                type="checkbox"
+                checked={
+                  multiSegment ||
+                  splittable
+                }
+                disabled={multiSegment}
+                onChange={(inputEvent) =>
+                  setSplittable(
+                    inputEvent.target.checked,
+                  )}
+              />
+              <span>
+                Fractionnable
+                {multiSegment
+                  ? ' · déjà répartie en plusieurs blocs'
+                  : ''}
+              </span>
+            </label>
+
+            {(multiSegment ||
+              splittable) && (
+              <label>
+                <span>
+                  Durée minimale d’un bloc
+                </span>
+                <select
+                  value={minChunkMin}
+                  onChange={(inputEvent) =>
+                    setMinChunkMin(
+                      Number(
+                        inputEvent.target.value,
+                      ),
+                    )}
+                >
+                  <option value={15}>
+                    15 min
+                  </option>
+                  <option value={30}>
+                    30 min
+                  </option>
+                  <option value={45}>
+                    45 min
+                  </option>
+                  <option value={60}>
+                    1 h
+                  </option>
+                  <option value={90}>
+                    1 h 30
+                  </option>
+                </select>
+              </label>
+            )}
+          </section>
+        )}
+
+        {constraintError && (
+          <p
+            className="planning-error task-constraint-error"
+            role="alert"
+          >
+            {constraintError}
+          </p>
+        )}
 
         <label className="task-detail-check">
           <input

@@ -75,10 +75,9 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Add richer task constraints and editing in the detail panel
-2. Improve overlap lanes, drag auto-scroll, and pointer interaction tests
-3. Broaden integration coverage for authentication, persistence, and replanning
-4. Retire the legacy snapshot table after a stability window
+1. Improve overlap lanes, drag auto-scroll, and pointer interaction tests
+2. Broaden integration coverage for authentication, persistence, and replanning
+3. Retire the legacy snapshot table after a stability window
 
 
 ## Supabase
@@ -165,3 +164,8 @@ Natural-language commands now resolve tomorrow, named weekdays and weekday deadl
 ### Date-based Quick Create deadlines
 
 Quick Create now stores a concrete ISO deadline date for flexible work instead of constraining deadlines to the remainder of the current week. The scheduling engine can therefore propose placements across week boundaries consistently with natural-language planning.
+
+
+### Editable task planning constraints
+
+The task detail panel now edits the same constraints consumed by the planner: concrete deadline date, daily time window, energy preference, splittability and minimum chunk size. Task-level constraint changes propagate across all scheduled segments and persist through `task_constraints`.
