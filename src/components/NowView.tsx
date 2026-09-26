@@ -140,7 +140,7 @@ export function NowView({
         event.startMin >
           (next?.startMin ?? currentMin),
     )
-    .slice(0, 3)
+    .slice(0, 2)
 
   const remaining =
     current &&
