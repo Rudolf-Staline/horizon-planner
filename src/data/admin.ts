@@ -24,6 +24,33 @@ export type AdminStats = {
   snapshots: number
 }
 
+export type AdminUserOverview = {
+  userId: string
+  counts: {
+    projects: number
+    tasks: number
+    openTasks: number
+    completedTasks: number
+    routines: number
+    calendarEvents: number
+    plannedSegments: number
+  }
+  recentTasks: Array<{
+    id: string
+    title: string
+    status: string
+    category: string
+    priority: string
+    updatedAt: string
+  }>
+  recentProjects: Array<{
+    id: string
+    name: string
+    archived: boolean
+    updatedAt: string
+  }>
+}
+
 async function invokeAdmin<T>(
   body: Record<string, unknown>,
 ): Promise<T> {
@@ -103,6 +130,16 @@ export async function adminSetSuspended(
 export async function adminDeleteUser(userId: string) {
   return invokeAdmin<{ ok: true }>({
     action: 'delete_user',
+    userId,
+  })
+}
+
+
+export async function loadAdminUserOverview(
+  userId: string,
+) {
+  return invokeAdmin<AdminUserOverview>({
+    action: 'user_overview',
     userId,
   })
 }

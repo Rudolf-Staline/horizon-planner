@@ -103,6 +103,25 @@ async function countTable(table: string) {
   return count ?? 0;
 }
 
+async function countUserTable(
+  table: string,
+  userId: string,
+  status?: string,
+) {
+  let query = adminClient
+    .from(table)
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
@@ -178,6 +197,100 @@ Deno.serve(async (req) => {
             isCurrentAdmin: user.id === admin.id,
           };
         }),
+      });
+    }
+
+    if (action === "user_overview") {
+      const targetUserId = String(
+        body.userId ?? "",
+      );
+
+      if (!targetUserId) {
+        return json(
+          req,
+          { error: "Utilisateur requis." },
+          400,
+        );
+      }
+
+      const [
+        projects,
+        tasks,
+        openTasks,
+        completedTasks,
+        routines,
+        calendarEvents,
+        plannedSegments,
+        recentTasksResult,
+        recentProjectsResult,
+      ] = await Promise.all([
+        countUserTable("projects", targetUserId),
+        countUserTable("tasks", targetUserId),
+        countUserTable("tasks", targetUserId, "open"),
+        countUserTable("tasks", targetUserId, "completed"),
+        countUserTable("routines", targetUserId),
+        countUserTable("calendar_events", targetUserId),
+        countUserTable("planned_segments", targetUserId),
+        adminClient
+          .from("tasks")
+          .select(
+            "id,title,status,category,priority,updated_at",
+          )
+          .eq("user_id", targetUserId)
+          .order("updated_at", {
+            ascending: false,
+          })
+          .limit(8),
+        adminClient
+          .from("projects")
+          .select(
+            "id,name,archived,updated_at",
+          )
+          .eq("user_id", targetUserId)
+          .order("updated_at", {
+            ascending: false,
+          })
+          .limit(6),
+      ]);
+
+      if (recentTasksResult.error) {
+        throw recentTasksResult.error;
+      }
+      if (recentProjectsResult.error) {
+        throw recentProjectsResult.error;
+      }
+
+      return json(req, {
+        userId: targetUserId,
+        counts: {
+          projects,
+          tasks,
+          openTasks,
+          completedTasks,
+          routines,
+          calendarEvents,
+          plannedSegments,
+        },
+        recentTasks:
+          (recentTasksResult.data ?? []).map(
+            (task) => ({
+              id: task.id,
+              title: task.title,
+              status: task.status,
+              category: task.category,
+              priority: task.priority,
+              updatedAt: task.updated_at,
+            }),
+          ),
+        recentProjects:
+          (recentProjectsResult.data ?? []).map(
+            (project) => ({
+              id: project.id,
+              name: project.name,
+              archived: project.archived,
+              updatedAt: project.updated_at,
+            }),
+          ),
       });
     }
 

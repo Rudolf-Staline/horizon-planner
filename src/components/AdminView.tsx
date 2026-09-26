@@ -1,6 +1,7 @@
 import {
   Ban,
   Database,
+  Eye,
   RefreshCw,
   ShieldCheck,
   Trash2,
@@ -15,8 +16,10 @@ import {
   adminSetSuspended,
   listAdminUsers,
   loadAdminStats,
+  loadAdminUserOverview,
   type AdminStats,
   type AdminUser,
+  type AdminUserOverview,
 } from '../data/admin'
 
 function formatDate(value: string | null) {
@@ -40,6 +43,12 @@ export function AdminView() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [selectedDataUser, setSelectedDataUser] =
+    useState<AdminUser | null>(null)
+  const [userOverview, setUserOverview] =
+    useState<AdminUserOverview | null>(null)
+  const [overviewLoading, setOverviewLoading] =
+    useState(false)
 
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -98,6 +107,29 @@ export function AdminView() {
       )
     } finally {
       setBusyId(null)
+    }
+  }
+
+  const inspectUserData = async (
+    user: AdminUser,
+  ) => {
+    setSelectedDataUser(user)
+    setUserOverview(null)
+    setOverviewLoading(true)
+    setError(null)
+
+    try {
+      const overview =
+        await loadAdminUserOverview(user.id)
+      setUserOverview(overview)
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Impossible de charger les données utilisateur.',
+      )
+    } finally {
+      setOverviewLoading(false)
     }
   }
 
@@ -170,7 +202,7 @@ export function AdminView() {
         <article><Users size={19}/><span>Utilisateurs</span><strong>{users.length}</strong></article>
         <article><ShieldCheck size={19}/><span>Comptes actifs</span><strong>{activeUsers}</strong></article>
         <article><Database size={19}/><span>Tâches</span><strong>{stats?.tasks ?? '—'}</strong></article>
-        <article><Database size={19}/><span>Snapshots</span><strong>{stats?.snapshots ?? '—'}</strong></article>
+        <article><Database size={19}/><span>Segments</span><strong>{stats?.plannedSegments ?? '—'}</strong></article>
       </section>
 
       <section className="admin-panel">
@@ -277,6 +309,16 @@ export function AdminView() {
 
                   <div className="admin-row-actions">
                     <button
+                      disabled={busy}
+                      onClick={() =>
+                        void inspectUserData(user)
+                      }
+                    >
+                      <Eye size={15}/>
+                      Données
+                    </button>
+
+                    <button
                       disabled={busy || user.isCurrentAdmin}
                       onClick={() =>
                         void runForUser(
@@ -334,6 +376,97 @@ export function AdminView() {
         )}
       </section>
 
+      {selectedDataUser && (
+        <section className="admin-panel admin-user-data-panel">
+          <div className="admin-panel-head">
+            <div>
+              <h2>
+                Données de {selectedDataUser.displayName || selectedDataUser.email || 'l’utilisateur'}
+              </h2>
+              <p>
+                Vue applicative contrôlée du compte. Les données sensibles d’authentification ne sont jamais exposées.
+              </p>
+            </div>
+            <button
+              className="icon-button"
+              aria-label="Fermer l’aperçu"
+              onClick={() => {
+                setSelectedDataUser(null)
+                setUserOverview(null)
+              }}
+            >
+              ×
+            </button>
+          </div>
+
+          {overviewLoading ? (
+            <div className="admin-loading">
+              Chargement des données…
+            </div>
+          ) : userOverview ? (
+            <>
+              <div className="admin-user-data-metrics">
+                <div><span>Projets</span><strong>{userOverview.counts.projects}</strong></div>
+                <div><span>Tâches</span><strong>{userOverview.counts.tasks}</strong></div>
+                <div><span>À faire</span><strong>{userOverview.counts.openTasks}</strong></div>
+                <div><span>Terminées</span><strong>{userOverview.counts.completedTasks}</strong></div>
+                <div><span>Routines</span><strong>{userOverview.counts.routines}</strong></div>
+                <div><span>Événements</span><strong>{userOverview.counts.calendarEvents}</strong></div>
+                <div><span>Segments</span><strong>{userOverview.counts.plannedSegments}</strong></div>
+              </div>
+
+              <div className="admin-user-data-columns">
+                <section>
+                  <h3>Tâches récentes</h3>
+                  {userOverview.recentTasks.length === 0 ? (
+                    <p className="admin-muted">Aucune tâche.</p>
+                  ) : (
+                    <div className="admin-data-list">
+                      {userOverview.recentTasks.map((task) => (
+                        <article key={task.id}>
+                          <div>
+                            <strong>{task.title}</strong>
+                            <span>
+                              {task.category} · {task.priority} · {task.status}
+                            </span>
+                          </div>
+                          <time>
+                            {formatDate(task.updatedAt)}
+                          </time>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section>
+                  <h3>Projets récents</h3>
+                  {userOverview.recentProjects.length === 0 ? (
+                    <p className="admin-muted">Aucun projet.</p>
+                  ) : (
+                    <div className="admin-data-list">
+                      {userOverview.recentProjects.map((project) => (
+                        <article key={project.id}>
+                          <div>
+                            <strong>{project.name}</strong>
+                            <span>
+                              {project.archived ? 'Archivé' : 'Actif'}
+                            </span>
+                          </div>
+                          <time>
+                            {formatDate(project.updatedAt)}
+                          </time>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
+            </>
+          ) : null}
+        </section>
+      )}
+
       <section className="admin-panel">
         <div className="admin-panel-head">
           <div>
@@ -352,7 +485,7 @@ export function AdminView() {
           <div><span>Routines</span><strong>{stats?.routines ?? '—'}</strong></div>
           <div><span>Événements</span><strong>{stats?.calendarEvents ?? '—'}</strong></div>
           <div><span>Segments</span><strong>{stats?.plannedSegments ?? '—'}</strong></div>
-          <div><span>Snapshots</span><strong>{stats?.snapshots ?? '—'}</strong></div>
+          <div><span>Snapshots hérités</span><strong>{stats?.snapshots ?? '—'}</strong></div>
         </div>
       </section>
 

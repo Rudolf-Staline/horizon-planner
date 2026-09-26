@@ -131,3 +131,8 @@ Planner startup now reconciles only the normalized Supabase model with the per-u
 ### Targeted normalized synchronization
 
 Planner persistence now upserts current tasks, segments, constraints and manual calendar events before deleting only stale rows. This avoids the former delete-all/reinsert window and preserves an existing task completion timestamp when an already-completed task is synchronized again.
+
+
+### Per-user admin data inspection
+
+Administrators can inspect application-level counts and recent task/project records for a selected user through the authenticated `admin-api` Edge Function. Authentication secrets and raw SQL remain outside the browser interface.
