@@ -1,8 +1,11 @@
 import {
   Archive,
+  Check,
   FolderKanban,
+  Pencil,
   Plus,
   Trash2,
+  X,
 } from 'lucide-react'
 import {
   useCallback,
@@ -22,24 +25,34 @@ import {
 interface Props {
   userId: string
   events: PlannerEvent[]
-  onProjectsChange?: (
-    projects: Project[],
-  ) => void
 }
+
+type ProjectDraft = {
+  name: string
+  description: string
+  color: string
+}
+
+const emptyDraft = (): ProjectDraft => ({
+  name: '',
+  description: '',
+  color: '#FF6200',
+})
 
 export function ProjectsView({
   userId,
   events,
-  onProjectsChange,
 }: Props) {
   const [projects, setProjects] =
     useState<Project[]>([])
   const [creating, setCreating] =
     useState(false)
-  const [name, setName] =
-    useState('')
-  const [description, setDescription] =
-    useState('')
+  const [editingId, setEditingId] =
+    useState<string | null>(null)
+  const [draft, setDraft] =
+    useState<ProjectDraft>(
+      emptyDraft,
+    )
   const [busy, setBusy] =
     useState(false)
   const [error, setError] =
@@ -50,7 +63,6 @@ export function ProjectsView({
       const next =
         await listProjects(userId)
       setProjects(next)
-      onProjectsChange?.(next)
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -58,7 +70,7 @@ export function ProjectsView({
           : 'Impossible de charger les projets.',
       )
     }
-  }, [userId, onProjectsChange])
+  }, [userId])
 
   useEffect(() => {
     void refresh()
@@ -69,36 +81,83 @@ export function ProjectsView({
 
     for (const event of events) {
       if (!event.projectId) continue
+
       map.set(
         event.projectId,
-        (map.get(event.projectId) ?? 0) + 1,
+        (map.get(event.projectId) ?? 0) +
+          1,
       )
     }
 
     return map
   }, [events])
 
-  const create = async () => {
-    const normalized = name.trim()
-    if (!normalized || busy) return
+  const openCreate = () => {
+    setEditingId(null)
+    setDraft(emptyDraft())
+    setCreating(true)
+    setError(null)
+  }
+
+  const openEdit = (
+    project: Project,
+  ) => {
+    setCreating(false)
+    setEditingId(project.id)
+    setDraft({
+      name: project.name,
+      description:
+        project.description ?? '',
+      color:
+        project.color || '#FF6200',
+    })
+    setError(null)
+  }
+
+  const closeEditor = () => {
+    setCreating(false)
+    setEditingId(null)
+    setDraft(emptyDraft())
+  }
+
+  const save = async () => {
+    const name = draft.name.trim()
+    if (!name || busy) return
 
     setBusy(true)
     setError(null)
 
     try {
-      await createProject(userId, {
-        name: normalized,
-        description,
-      })
-      setName('')
-      setDescription('')
-      setCreating(false)
+      if (editingId) {
+        await updateProject(
+          editingId,
+          {
+            name,
+            description:
+              draft.description.trim() ||
+              null,
+            color: draft.color,
+          },
+        )
+      } else {
+        await createProject(
+          userId,
+          {
+            name,
+            description:
+              draft.description,
+            color: draft.color,
+          },
+        )
+      }
+
+      closeEditor()
       await refresh()
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
-          : 'Création impossible.',
+          : 'Enregistrement impossible.',
       )
     } finally {
       setBusy(false)
@@ -159,6 +218,9 @@ export function ProjectsView({
     }
   }
 
+  const showEditor =
+    creating || editingId !== null
+
   return (
     <main className="projects-page">
       <header className="section-header">
@@ -168,30 +230,51 @@ export function ProjectsView({
           </span>
           <h1>Projets</h1>
           <p>
-            De vrais espaces de travail auxquels
-            vos tâches peuvent être rattachées.
+            Espaces de travail auxquels vos
+            tâches et routines peuvent être
+            rattachées.
           </p>
         </div>
 
         <button
           className="btn primary"
-          onClick={() =>
-            setCreating((value) => !value)}
+          onClick={openCreate}
         >
           <Plus size={16}/>
           Nouveau projet
         </button>
       </header>
 
-      {creating && (
+      {showEditor && (
         <section className="project-create">
+          <div className="project-editor-head">
+            <strong>
+              {editingId
+                ? 'Modifier le projet'
+                : 'Nouveau projet'}
+            </strong>
+            <button
+              className="icon-button"
+              onClick={closeEditor}
+              aria-label="Fermer"
+            >
+              <X size={17}/>
+            </button>
+          </div>
+
           <label>
             <span>Nom</span>
             <input
               autoFocus
-              value={name}
+              value={draft.name}
               onChange={(event) =>
-                setName(event.target.value)}
+                setDraft(
+                  (current) => ({
+                    ...current,
+                    name:
+                      event.target.value,
+                  }),
+                )}
               placeholder="Ex. Horizon"
             />
           </label>
@@ -199,31 +282,57 @@ export function ProjectsView({
           <label>
             <span>Description</span>
             <input
-              value={description}
+              value={
+                draft.description
+              }
               onChange={(event) =>
-                setDescription(
-                  event.target.value,
+                setDraft(
+                  (current) => ({
+                    ...current,
+                    description:
+                      event.target.value,
+                  }),
                 )}
               placeholder="Objectif du projet"
+            />
+          </label>
+
+          <label className="project-color-field">
+            <span>Couleur</span>
+            <input
+              type="color"
+              value={draft.color}
+              onChange={(event) =>
+                setDraft(
+                  (current) => ({
+                    ...current,
+                    color:
+                      event.target.value,
+                  }),
+                )}
             />
           </label>
 
           <div className="project-create-actions">
             <button
               className="btn secondary"
-              onClick={() =>
-                setCreating(false)}
+              onClick={closeEditor}
             >
               Annuler
             </button>
             <button
               className="btn primary"
               disabled={
-                busy || !name.trim()
+                busy ||
+                !draft.name.trim()
               }
-              onClick={() => void create()}
+              onClick={() =>
+                void save()}
             >
-              Créer
+              <Check size={15}/>
+              {editingId
+                ? 'Enregistrer'
+                : 'Créer'}
             </button>
           </div>
         </section>
@@ -250,7 +359,9 @@ export function ProjectsView({
                 project.archived
                   ? 'archived'
                   : '',
-              ].filter(Boolean).join(' ')}
+              ]
+                .filter(Boolean)
+                .join(' ')}
               style={{
                 borderTopColor:
                   project.color ||
@@ -283,6 +394,14 @@ export function ProjectsView({
                 <button
                   disabled={busy}
                   onClick={() =>
+                    openEdit(project)}
+                >
+                  <Pencil size={15}/>
+                  Modifier
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() =>
                     void toggleArchived(
                       project,
                     )}
@@ -299,7 +418,6 @@ export function ProjectsView({
                     void remove(project)}
                 >
                   <Trash2 size={15}/>
-                  Supprimer
                 </button>
               </div>
             </article>

@@ -1,9 +1,12 @@
 import {
+  Check,
+  Pencil,
   PauseCircle,
   PlayCircle,
   Plus,
   Repeat2,
   Trash2,
+  X,
 } from 'lucide-react'
 import {
   useEffect,
@@ -14,6 +17,7 @@ import {
   deleteRoutine,
   listRoutines,
   setRoutineActive,
+  updateRoutine,
   type Routine,
 } from '../data/routines'
 import {
@@ -21,7 +25,7 @@ import {
   type Project,
 } from '../data/projects'
 
-const DAYS = [
+const DAY_LABELS = [
   'L',
   'M',
   'M',
@@ -37,6 +41,22 @@ interface Props {
   onChange: (routines: Routine[]) => void
 }
 
+type Draft = {
+  title: string
+  duration: number
+  time: string
+  days: number[]
+  projectId: string
+}
+
+const emptyDraft = (): Draft => ({
+  title: '',
+  duration: 45,
+  time: '08:00',
+  days: [0, 1, 2, 3, 4],
+  projectId: '',
+})
+
 export function RoutinesView({
   userId,
   routines,
@@ -44,18 +64,10 @@ export function RoutinesView({
 }: Props) {
   const [creating, setCreating] =
     useState(false)
-  const [title, setTitle] =
-    useState('')
-  const [duration, setDuration] =
-    useState(45)
-  const [time, setTime] =
-    useState('08:00')
-  const [days, setDays] =
-    useState<number[]>([
-      0, 1, 2, 3, 4,
-    ])
-  const [projectId, setProjectId] =
-    useState('')
+  const [editingId, setEditingId] =
+    useState<string | null>(null)
+  const [draft, setDraft] =
+    useState<Draft>(emptyDraft)
   const [projects, setProjects] =
     useState<Project[]>([])
   const [busy, setBusy] =
@@ -83,20 +95,58 @@ export function RoutinesView({
   }
 
   const toggleDay = (day: number) => {
-    setDays((current) =>
-      current.includes(day)
-        ? current.filter(
-            (value) =>
-              value !== day,
-          )
-        : [...current, day].sort(),
-    )
+    setDraft((current) => ({
+      ...current,
+      days:
+        current.days.includes(day)
+          ? current.days.filter(
+              (value) =>
+                value !== day,
+            )
+          : [
+              ...current.days,
+              day,
+            ].sort(),
+    }))
   }
 
-  const create = async () => {
+  const openCreate = () => {
+    setEditingId(null)
+    setDraft(emptyDraft())
+    setCreating(true)
+    setError(null)
+  }
+
+  const openEdit = (
+    routine: Routine,
+  ) => {
+    setCreating(false)
+    setEditingId(routine.id)
+    setDraft({
+      title: routine.title,
+      duration:
+        routine.durationMin,
+      time:
+        routine.preferredStart
+          ?.slice(0, 5) ||
+        '08:00',
+      days: [...routine.days],
+      projectId:
+        routine.projectId ?? '',
+    })
+    setError(null)
+  }
+
+  const closeEditor = () => {
+    setCreating(false)
+    setEditingId(null)
+    setDraft(emptyDraft())
+  }
+
+  const submit = async () => {
     if (
-      !title.trim() ||
-      days.length === 0 ||
+      !draft.title.trim() ||
+      draft.days.length === 0 ||
       busy
     ) {
       return
@@ -106,26 +156,47 @@ export function RoutinesView({
     setError(null)
 
     try {
-      await createRoutine(
-        userId,
-        {
-          title: title.trim(),
-          projectId:
-            projectId || undefined,
-          durationMin: duration,
-          days,
-          preferredStart: time,
-        },
-      )
+      if (editingId) {
+        await updateRoutine(
+          editingId,
+          {
+            title:
+              draft.title.trim(),
+            projectId:
+              draft.projectId ||
+              null,
+            durationMin:
+              draft.duration,
+            days: draft.days,
+            preferredStart:
+              draft.time,
+          },
+        )
+      } else {
+        await createRoutine(
+          userId,
+          {
+            title:
+              draft.title.trim(),
+            projectId:
+              draft.projectId ||
+              undefined,
+            durationMin:
+              draft.duration,
+            days: draft.days,
+            preferredStart:
+              draft.time,
+          },
+        )
+      }
 
-      setTitle('')
-      setCreating(false)
+      closeEditor()
       await refresh()
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
-          : 'Création impossible.',
+          : 'Enregistrement impossible.',
       )
     } finally {
       setBusy(false)
@@ -170,7 +241,9 @@ export function RoutinesView({
     setError(null)
 
     try {
-      await deleteRoutine(routine.id)
+      await deleteRoutine(
+        routine.id,
+      )
       await refresh()
     } catch (cause) {
       setError(
@@ -182,6 +255,9 @@ export function RoutinesView({
       setBusy(false)
     }
   }
+
+  const showEditor =
+    creating || editingId !== null
 
   return (
     <main className="routines-page">
@@ -200,23 +276,43 @@ export function RoutinesView({
 
         <button
           className="btn primary"
-          onClick={() =>
-            setCreating((value) => !value)}
+          onClick={openCreate}
         >
           <Plus size={16}/>
           Nouvelle routine
         </button>
       </header>
 
-      {creating && (
+      {showEditor && (
         <section className="routine-create">
+          <div className="routine-editor-head">
+            <strong>
+              {editingId
+                ? 'Modifier la routine'
+                : 'Nouvelle routine'}
+            </strong>
+            <button
+              className="icon-button"
+              onClick={closeEditor}
+              aria-label="Fermer"
+            >
+              <X size={17}/>
+            </button>
+          </div>
+
           <label className="routine-title-field">
             <span>Nom</span>
             <input
               autoFocus
-              value={title}
+              value={draft.title}
               onChange={(event) =>
-                setTitle(event.target.value)}
+                setDraft(
+                  (current) => ({
+                    ...current,
+                    title:
+                      event.target.value,
+                  }),
+                )}
               placeholder="Ex. Sport"
             />
           </label>
@@ -226,36 +322,62 @@ export function RoutinesView({
             <input
               type="time"
               step={900}
-              value={time}
+              value={draft.time}
               onChange={(event) =>
-                setTime(event.target.value)}
+                setDraft(
+                  (current) => ({
+                    ...current,
+                    time:
+                      event.target.value,
+                  }),
+                )}
             />
           </label>
 
           <label>
             <span>Durée</span>
             <select
-              value={duration}
+              value={draft.duration}
               onChange={(event) =>
-                setDuration(
-                  Number(event.target.value),
+                setDraft(
+                  (current) => ({
+                    ...current,
+                    duration:
+                      Number(
+                        event.target.value,
+                      ),
+                  }),
                 )}
             >
-              <option value={30}>30 min</option>
-              <option value={45}>45 min</option>
-              <option value={60}>1 h</option>
-              <option value={90}>1 h 30</option>
-              <option value={120}>2 h</option>
+              <option value={30}>
+                30 min
+              </option>
+              <option value={45}>
+                45 min
+              </option>
+              <option value={60}>
+                1 h
+              </option>
+              <option value={90}>
+                1 h 30
+              </option>
+              <option value={120}>
+                2 h
+              </option>
             </select>
           </label>
 
           <label>
             <span>Projet</span>
             <select
-              value={projectId}
+              value={draft.projectId}
               onChange={(event) =>
-                setProjectId(
-                  event.target.value,
+                setDraft(
+                  (current) => ({
+                    ...current,
+                    projectId:
+                      event.target.value,
+                  }),
                 )}
             >
               <option value="">
@@ -275,28 +397,31 @@ export function RoutinesView({
           </label>
 
           <div className="routine-days">
-            {DAYS.map((label, day) => (
-              <button
-                key={day}
-                type="button"
-                className={
-                  days.includes(day)
-                    ? 'selected'
-                    : ''
-                }
-                onClick={() =>
-                  toggleDay(day)}
-              >
-                {label}
-              </button>
-            ))}
+            {DAY_LABELS.map(
+              (label, day) => (
+                <button
+                  key={day}
+                  type="button"
+                  className={
+                    draft.days.includes(
+                      day,
+                    )
+                      ? 'selected'
+                      : ''
+                  }
+                  onClick={() =>
+                    toggleDay(day)}
+                >
+                  {label}
+                </button>
+              ),
+            )}
           </div>
 
           <div className="routine-create-actions">
             <button
               className="btn secondary"
-              onClick={() =>
-                setCreating(false)}
+              onClick={closeEditor}
             >
               Annuler
             </button>
@@ -304,12 +429,16 @@ export function RoutinesView({
               className="btn primary"
               disabled={
                 busy ||
-                !title.trim() ||
-                days.length === 0
+                !draft.title.trim() ||
+                draft.days.length === 0
               }
-              onClick={() => void create()}
+              onClick={() =>
+                void submit()}
             >
-              Créer
+              <Check size={15}/>
+              {editingId
+                ? 'Enregistrer'
+                : 'Créer'}
             </button>
           </div>
         </section>
@@ -383,6 +512,15 @@ export function RoutinesView({
                 <button
                   disabled={busy}
                   onClick={() =>
+                    openEdit(routine)}
+                >
+                  <Pencil size={15}/>
+                  Modifier
+                </button>
+
+                <button
+                  disabled={busy}
+                  onClick={() =>
                     void toggleActive(
                       routine,
                     )}
@@ -402,7 +540,6 @@ export function RoutinesView({
                     void remove(routine)}
                 >
                   <Trash2 size={15}/>
-                  Supprimer
                 </button>
               </div>
             </article>

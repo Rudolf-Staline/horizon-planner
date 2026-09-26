@@ -93,6 +93,48 @@ export async function createRoutine(
   if (error) throw error
 }
 
+export async function updateRoutine(
+  routineId: string,
+  patch: {
+    title?: string
+    projectId?: string | null
+    durationMin?: number
+    days?: number[]
+    preferredStart?: string | null
+  },
+) {
+  const client = requireSupabase()
+  const payload: Record<string, unknown> = {}
+
+  if (patch.title !== undefined) {
+    payload.title = patch.title
+  }
+  if (patch.projectId !== undefined) {
+    payload.project_id =
+      patch.projectId || null
+  }
+  if (patch.durationMin !== undefined) {
+    payload.duration_min =
+      patch.durationMin
+  }
+  if (patch.days !== undefined) {
+    payload.days = patch.days
+  }
+  if (patch.preferredStart !== undefined) {
+    payload.preferred_start =
+      patch.preferredStart
+        ? `${patch.preferredStart}:00`
+        : null
+  }
+
+  const { error } = await client
+    .from('routines')
+    .update(payload)
+    .eq('id', routineId)
+
+  if (error) throw error
+}
+
 export async function setRoutineActive(
   routineId: string,
   active: boolean,
