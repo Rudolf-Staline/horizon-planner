@@ -270,6 +270,8 @@ export function usePlanner() {
   const eventsRef = useRef<PlannerEvent[]>([])
   const cloudUserIdRef = useRef<string | null>(null)
   const realtimeChannelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null)
+  const cloudSyncDepthRef = useRef(0)
+  const realtimeRefreshTimerRef = useRef<number | null>(null)
   const skipNextCloudPushRef = useRef(false)
   const recoveryRef = useRef(isRecoveryUrl())
 
@@ -292,6 +294,12 @@ export function usePlanner() {
     undoStack.current = []
     redoStack.current = []
     skipNextCloudPushRef.current = false
+    cloudSyncDepthRef.current = 0
+
+    if (realtimeRefreshTimerRef.current !== null) {
+      window.clearTimeout(realtimeRefreshTimerRef.current)
+      realtimeRefreshTimerRef.current = null
+    }
 
     setCloudUserId(null)
     setEvents([])
@@ -312,9 +320,12 @@ export function usePlanner() {
     }
 
     let cancelled = false
+    let backgroundRefreshInFlight = false
+    let backgroundRefreshPending = false
 
     const reconcile = async (
       user: Awaited<ReturnType<typeof currentCloudUser>>,
+      background = false,
     ) => {
       if (cancelled) return
 
@@ -334,7 +345,9 @@ export function usePlanner() {
         return
       }
 
-      setAuthStatus('loading')
+      if (!background) {
+        setAuthStatus('loading')
+      }
       localStorage.removeItem(LEGACY_STORAGE_KEY)
       setCloudStatus('syncing')
 
@@ -354,7 +367,12 @@ export function usePlanner() {
           await syncProfileTimezone(user.id, browserTimezone).catch(() => undefined)
         }
 
-        if (cancelled) return
+        if (
+          cancelled ||
+          cloudUserIdRef.current !== user.id
+        ) {
+          return
+        }
 
         setCloudDisplayName(
           profile?.displayName ??
@@ -431,10 +449,23 @@ export function usePlanner() {
           shouldPush &&
           !normalizedReadFailed
         ) {
-          await syncNormalizedPlanner(user.id, nextEvents, timeZone)
+          cloudSyncDepthRef.current += 1
+          try {
+            await syncNormalizedPlanner(user.id, nextEvents, timeZone)
+          } finally {
+            cloudSyncDepthRef.current = Math.max(
+              0,
+              cloudSyncDepthRef.current - 1,
+            )
+          }
         }
 
-        if (cancelled) return
+        if (
+          cancelled ||
+          cloudUserIdRef.current !== user.id
+        ) {
+          return
+        }
 
         skipNextCloudPushRef.current = true
         setEvents(nextEvents)
@@ -443,7 +474,9 @@ export function usePlanner() {
             ? 'error'
             : 'synced',
         )
-        setAuthStatus('authenticated')
+        if (!background) {
+          setAuthStatus('authenticated')
+        }
 
         if (
           supabase &&
@@ -460,7 +493,7 @@ export function usePlanner() {
                 filter: `user_id=eq.${user.id}`,
               },
               () => {
-                if (!cancelled) void reconcile(user)
+                if (!cancelled) scheduleRealtimeRefresh(user)
               },
             )
             .on(
@@ -472,7 +505,7 @@ export function usePlanner() {
                 filter: `user_id=eq.${user.id}`,
               },
               () => {
-                if (!cancelled) void reconcile(user)
+                if (!cancelled) scheduleRealtimeRefresh(user)
               },
             )
             .on(
@@ -484,7 +517,7 @@ export function usePlanner() {
                 filter: `user_id=eq.${user.id}`,
               },
               () => {
-                if (!cancelled) void reconcile(user)
+                if (!cancelled) scheduleRealtimeRefresh(user)
               },
             )
             .on(
@@ -496,7 +529,7 @@ export function usePlanner() {
                 filter: `id=eq.${user.id}`,
               },
               () => {
-                if (!cancelled) void reconcile(user)
+                if (!cancelled) scheduleRealtimeRefresh(user)
               },
             )
             .subscribe()
@@ -505,13 +538,64 @@ export function usePlanner() {
       } catch {
         if (cancelled) return
 
+        if (background) {
+          setCloudStatus('error')
+          return
+        }
+
         resetPrivateState(false)
         setCloudStatus('error')
         setAuthStatus('anonymous')
       }
     }
 
-    currentCloudUser().then(reconcile)
+    const refreshInBackground = async (
+      user: NonNullable<Awaited<ReturnType<typeof currentCloudUser>>>,
+    ) => {
+      if (backgroundRefreshInFlight) {
+        backgroundRefreshPending = true
+        return
+      }
+
+      backgroundRefreshInFlight = true
+      await reconcile(user, true)
+      backgroundRefreshInFlight = false
+
+      if (backgroundRefreshPending && !cancelled) {
+        backgroundRefreshPending = false
+        scheduleRealtimeRefresh(user)
+      }
+    }
+
+    const scheduleRealtimeRefresh = (
+      user: NonNullable<Awaited<ReturnType<typeof currentCloudUser>>>,
+    ) => {
+      if (realtimeRefreshTimerRef.current !== null) {
+        window.clearTimeout(realtimeRefreshTimerRef.current)
+      }
+
+      const runWhenSettled = () => {
+        if (cancelled) return
+
+        if (cloudSyncDepthRef.current > 0) {
+          realtimeRefreshTimerRef.current = window.setTimeout(
+            runWhenSettled,
+            200,
+          )
+          return
+        }
+
+        realtimeRefreshTimerRef.current = null
+        void refreshInBackground(user)
+      }
+
+      realtimeRefreshTimerRef.current = window.setTimeout(
+        runWhenSettled,
+        350,
+      )
+    }
+
+    currentCloudUser().then((user) => reconcile(user))
 
     const {
       data: { subscription },
@@ -523,13 +607,22 @@ export function usePlanner() {
       }
 
       queueMicrotask(() => {
-        reconcile(session?.user ?? null)
+        const user = session?.user ?? null
+        const background = Boolean(
+          user &&
+          cloudUserIdRef.current === user.id,
+        )
+        void reconcile(user, background)
       })
     })
 
     return () => {
       cancelled = true
       subscription.unsubscribe()
+      if (realtimeRefreshTimerRef.current !== null) {
+        window.clearTimeout(realtimeRefreshTimerRef.current)
+        realtimeRefreshTimerRef.current = null
+      }
       if (realtimeChannelRef.current && supabase) {
         void supabase.removeChannel(realtimeChannelRef.current)
         realtimeChannelRef.current = null
@@ -554,6 +647,7 @@ export function usePlanner() {
 
     const timer = window.setTimeout(async () => {
       setCloudStatus('syncing')
+      cloudSyncDepthRef.current += 1
 
       try {
         await syncNormalizedPlanner(
@@ -564,6 +658,11 @@ export function usePlanner() {
         setCloudStatus('synced')
       } catch {
         setCloudStatus('error')
+      } finally {
+        cloudSyncDepthRef.current = Math.max(
+          0,
+          cloudSyncDepthRef.current - 1,
+        )
       }
     }, 650)
 
