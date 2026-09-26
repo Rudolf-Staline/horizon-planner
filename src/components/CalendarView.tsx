@@ -27,6 +27,8 @@ import {
 } from '../utils/date'
 import { clamp, snapMinutes } from '../utils/time'
 import { EventCard } from './EventCard'
+import { InlineQuickCreate } from './InlineQuickCreate'
+import type { InlineTaskDraft } from '../domain/quickCreate'
 
 export type CalendarMode = 'day' | 'week' | 'month' | 'year'
 
@@ -35,6 +37,7 @@ interface Props {
   anchorDate: string
   events: PlannerEvent[]
   selectedId: string | null
+  draft: InlineTaskDraft | null
   onMode: (mode: CalendarMode) => void
   onAnchorDate: (date: string) => void
   onSelect: (id: string | null) => void
@@ -47,6 +50,8 @@ interface Props {
     day: number,
     startMin: number,
   ) => void
+  onDraftSubmit: (title: string) => void
+  onDraftCancel: () => void
 }
 
 const HOUR_COUNT = 16
@@ -66,11 +71,14 @@ export function CalendarView({
   anchorDate,
   events,
   selectedId,
+  draft,
   onMode,
   onAnchorDate,
   onSelect,
   onChange,
   onEmptyClick,
+  onDraftSubmit,
+  onDraftCancel,
 }: Props) {
   const anchor = fromISODate(anchorDate)
   const today = new Date()
@@ -81,6 +89,11 @@ export function CalendarView({
   const height = (END_MIN - START_MIN) * PX_PER_MIN
   const [viewportWidth, setViewportWidth] =
     useState(() => window.innerWidth)
+  const [hoverSlot, setHoverSlot] =
+    useState<{
+      date: string
+      startMin: number
+    } | null>(null)
 
   useEffect(() => {
     const updateViewport = () =>
@@ -206,10 +219,11 @@ export function CalendarView({
                   left: visibleDay * columnWidth,
                   width: columnWidth,
                 }}
-                onPointerUp={(event) => {
+                onPointerMove={(event) => {
                   if (
                     event.pointerType !==
-                    'touch'
+                    'mouse' ||
+                    draft
                   ) {
                     return
                   }
@@ -217,39 +231,54 @@ export function CalendarView({
                   const rect =
                     event.currentTarget.getBoundingClientRect()
                   const y =
-                    event.clientY - rect.top
-                  const startMin = clamp(
-                    snapMinutes(
-                      START_MIN +
-                        y / PX_PER_MIN,
-                    ),
-                    START_MIN,
-                    END_MIN - 30,
-                  )
+                    event.clientY -
+                    rect.top
+                  const startMin =
+                    clamp(
+                      snapMinutes(
+                        START_MIN +
+                          y /
+                            PX_PER_MIN,
+                      ),
+                      START_MIN,
+                      END_MIN - 30,
+                    )
+
+                  setHoverSlot({
+                    date:
+                      toISODate(
+                        date,
+                      ),
+                    startMin,
+                  })
+                }}
+                onPointerLeave={() =>
+                  setHoverSlot(null)
+                }
+                onClick={(event) => {
+                  event.stopPropagation()
+                  const rect =
+                    event.currentTarget.getBoundingClientRect()
+                  const y =
+                    event.clientY -
+                    rect.top
+                  const startMin =
+                    clamp(
+                      snapMinutes(
+                        START_MIN +
+                          y /
+                            PX_PER_MIN,
+                      ),
+                      START_MIN,
+                      END_MIN - 30,
+                    )
 
                   onEmptyClick(
                     toISODate(date),
                     weekdayIndex(date),
                     startMin,
                   )
-                }}
-                onDoubleClick={(event) => {
-                  const rect =
-                    event.currentTarget.getBoundingClientRect()
-                  const y =
-                    event.clientY - rect.top
-                  const startMin = clamp(
-                    snapMinutes(
-                      START_MIN + y / PX_PER_MIN,
-                    ),
-                    START_MIN,
-                    END_MIN - 30,
-                  )
-                  onEmptyClick(
-                    toISODate(date),
-                    weekdayIndex(date),
-                    startMin,
-                  )
+                  setHoverSlot(null)
                 }}
               >
                 {hours.map((hour) => (
@@ -263,8 +292,50 @@ export function CalendarView({
                     }}
                   />
                 ))}
+
+                {hoverSlot?.date ===
+                  toISODate(date) &&
+                  !draft && (
+                    <span
+                      className="slot-add-hint"
+                      style={{
+                        top:
+                          (
+                            hoverSlot.startMin -
+                            START_MIN
+                          ) *
+                          PX_PER_MIN,
+                      }}
+                      aria-hidden="true"
+                    >
+                      +
+                    </span>
+                  )}
               </div>
             ))}
+
+            {draft && (() => {
+              const draftIndex =
+                dates.findIndex(
+                  (date) =>
+                    toISODate(date) ===
+                    draft.date,
+                )
+
+              if (draftIndex < 0) {
+                return null
+              }
+
+              return (
+                <InlineQuickCreate
+                  draft={draft}
+                  visibleDay={draftIndex}
+                  columnWidth={columnWidth}
+                  onSubmit={onDraftSubmit}
+                  onCancel={onDraftCancel}
+                />
+              )
+            })()}
 
             {visibleEvents.map((event) => {
               const lane =
@@ -337,9 +408,8 @@ export function CalendarView({
           <span><i className="dot neutral"/>Autre</span>
         </div>
         <p className="hint">
-          Double-clique un créneau, ou touche-le sur mobile, pour créer.
-          Glisse une carte pour la déplacer. Tire sa poignée basse pour
-          changer la durée.
+          Clique un créneau pour créer directement. Glisse une carte pour
+          la déplacer. Tire sa poignée basse pour changer la durée.
         </p>
       </>
     )
@@ -376,13 +446,15 @@ export function CalendarView({
                   onAnchorDate(iso)
                   onMode('day')
                 }}
-                onDoubleClick={() =>
+                onDoubleClick={() => {
+                  onAnchorDate(iso)
+                  onMode('day')
                   onEmptyClick(
                     iso,
                     weekdayIndex(date),
                     9 * 60,
                   )
-                }
+                }}
               >
                 <strong>{date.getDate()}</strong>
                 <div className="month-events">

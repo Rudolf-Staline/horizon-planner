@@ -13,12 +13,12 @@ import { CommandPalette } from './components/CommandPalette'
 import { ConflictBar } from './components/ConflictBar'
 import { Header } from './components/Header'
 import { NowView } from './components/NowView'
-import { QuickCreate } from './components/QuickCreate'
 import { Sidebar, type Section } from './components/Sidebar'
 import { TasksView } from './components/TasksView'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { usePlanner } from './state/planner'
 import type { PlannerEvent } from './domain/types'
+import { buildInlineTask } from './domain/quickCreate'
 import {
   fromISODate,
   monthGridDates,
@@ -311,6 +311,7 @@ export default function App() {
               onChange={
                 planner.updateEvent
               }
+              draft={quick}
               onEmptyClick={(
                 date,
                 day,
@@ -322,6 +323,18 @@ export default function App() {
                   startMin,
                 })
               }
+              onDraftCancel={() =>
+                setQuick(null)
+              }
+              onDraftSubmit={(title) => {
+                if (!quick) return
+                create([
+                  buildInlineTask(
+                    quick,
+                    title,
+                  ),
+                ])
+              }}
             />
           )}
 
@@ -421,19 +434,6 @@ export default function App() {
             create(created)
             setCommandOpen(false)
           }}
-        />
-      )}
-
-      {quick && (
-        <QuickCreate
-          date={quick.date}
-          day={quick.day}
-          startMin={quick.startMin}
-          events={planner.events}
-          onClose={() =>
-            setQuick(null)
-          }
-          onCreate={create}
         />
       )}
 

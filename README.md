@@ -223,3 +223,8 @@ Projection from planner events to Supabase rows is now a pure tested layer. Mult
 ### Legacy snapshot isolation
 
 The former `planner_snapshots` bridge has no runtime module, no admin metric and no synchronization path. Its single historical database row is retained only as a temporary rollback/audit artifact until the stability window is deliberately closed.
+
+
+### Inline calendar quick create
+
+Empty day/week slots now create in place instead of opening a modal. Hover reveals the target slot, one click inserts a focused draft at that time, Enter commits a minimal flexible task, and Escape cancels it. The created task deliberately starts neutral with a 60-minute duration and a concrete J+2 deadline; richer constraints stay in the detail panel.
