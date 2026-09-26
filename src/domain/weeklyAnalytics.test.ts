@@ -119,6 +119,46 @@ describe(
     )
 
     it(
+      'counts virtual routine occurrences in weekly load',
+      () => {
+        const metrics =
+          buildWeeklyAnalytics(
+            [
+              event(
+                'routine-occurrence',
+                '2026-09-24',
+                45,
+                {
+                  entityType:
+                    'routine',
+                  routineId:
+                    'routine-1',
+                  virtual: true,
+                  category:
+                    'routine',
+                  kind:
+                    'fixed',
+                },
+              ),
+            ],
+            new Date(
+              2026,
+              8,
+              23,
+              12,
+            ),
+          )
+
+        expect(
+          metrics.routineMinutes,
+        ).toBe(45)
+        expect(
+          metrics.totalMinutes,
+        ).toBe(45)
+      },
+    )
+
+    it(
       'does not invent a busiest day for an empty week',
       () => {
         const metrics =

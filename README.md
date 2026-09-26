@@ -261,3 +261,8 @@ The obsolete hard-coded demo schedule has been removed. Horizon no longer carrie
 ### Single calendar gesture implementation
 
 The unused legacy `useEventGesture` hook has been removed. Calendar pointer geometry now has one implementation only: the tested pure helpers in `src/utils/pointer.ts`, used directly by `EventCard`.
+
+
+### Routine-aware weekly analytics
+
+Weekly analytics now includes the real virtual occurrences generated from active routine templates for the current Monday-Sunday interval. Routine workload is therefore represented even though recurrence templates are stored separately from planner task segments.

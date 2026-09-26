@@ -24,6 +24,7 @@ import {
   monthGridDates,
   startOfWeek,
   toISODate,
+  weekDates,
 } from './utils/date'
 import {
   expandRoutines,
@@ -201,6 +202,38 @@ export default function App() {
     ],
     [planner.events, routineEvents],
   )
+
+  const analyticsRoutineEvents =
+    useMemo(() => {
+      const dates =
+        weekDates(new Date())
+
+      return expandRoutines(
+        routines,
+        toISODate(dates[0]),
+        toISODate(
+          dates[
+            dates.length - 1
+          ],
+        ),
+        routineExceptions,
+      )
+    }, [
+      routines,
+      routineExceptions,
+    ])
+
+  const analyticsEvents =
+    useMemo(
+      () => [
+        ...planner.events,
+        ...analyticsRoutineEvents,
+      ],
+      [
+        planner.events,
+        analyticsRoutineEvents,
+      ],
+    )
 
   const create = (
     created: PlannerEvent[],
@@ -389,7 +422,7 @@ export default function App() {
 
         {section === 'analytics' && (
           <AnalyticsView
-            events={planner.events}
+            events={analyticsEvents}
           />
         )}
 
