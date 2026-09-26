@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
 import { conflictsFor, findNextAvailableSlot } from '../domain/scheduling'
-import {
-  currentCloudUser,
-  loadCloudSnapshot,
-  saveCloudSnapshot,
-  syncProfileTimezone,
-} from '../data/cloudSnapshot'
+import { currentCloudUser } from '../data/auth'
 import {
   loadOwnProfile,
+  syncProfileTimezone,
   type UserRole,
 } from '../data/profile'
 import { supabase } from '../lib/supabase'
@@ -16,6 +12,7 @@ import {
   loadNormalizedPlanner,
   syncNormalizedPlanner,
 } from '../data/normalizedPlanner'
+import { choosePlannerSource } from './plannerReconcile'
 import { migrateLegacyEventDates } from '../utils/date'
 import {
   isCalendarEntity,
@@ -296,9 +293,13 @@ export function usePlanner() {
         const browserTimezone =
           Intl.DateTimeFormat().resolvedOptions().timeZone
 
-        const [remote, normalized, profile] = await Promise.all([
-          loadCloudSnapshot(user.id),
-          loadNormalizedPlanner(user.id).catch(() => null),
+        let normalizedReadFailed = false
+
+        const [normalized, profile] = await Promise.all([
+          loadNormalizedPlanner(user.id).catch(() => {
+            normalizedReadFailed = true
+            return null
+          }),
           loadOwnProfile(user.id).catch(() => null),
           browserTimezone
             ? syncProfileTimezone(user.id, browserTimezone)
@@ -318,47 +319,16 @@ export function usePlanner() {
 
         const local = loadLocalSnapshot(user.id)
 
-        let nextEvents: PlannerEvent[] = []
-        let nextModifiedAt = 0
-        let shouldPush = false
+        const choice = choosePlannerSource({
+          normalized,
+          local,
+          normalizedReadFailed,
+          now: Date.now(),
+        })
 
-        const cloudSource =
-          normalized &&
-          (!remote ||
-            normalized.modifiedAt >=
-              remote.modifiedAt)
-            ? normalized
-            : remote
-
-        if (cloudSource && local) {
-          if (
-            cloudSource.modifiedAt >=
-            local.modifiedAt
-          ) {
-            nextEvents =
-              cloudSource.events
-            nextModifiedAt =
-              cloudSource.modifiedAt
-          } else {
-            nextEvents = local.events
-            nextModifiedAt =
-              local.modifiedAt
-            shouldPush = true
-          }
-        } else if (cloudSource) {
-          nextEvents =
-            cloudSource.events
-          nextModifiedAt =
-            cloudSource.modifiedAt
-        } else if (local) {
-          nextEvents = local.events
-          nextModifiedAt = local.modifiedAt
-          shouldPush = true
-        } else {
-          nextEvents = []
-          nextModifiedAt = Date.now()
-          shouldPush = true
-        }
+        let nextEvents = choice.events
+        let nextModifiedAt = choice.modifiedAt
+        let shouldPush = choice.shouldPush
 
         const dateMigration =
           migrateLegacyEventDates(nextEvents)
@@ -391,19 +361,10 @@ export function usePlanner() {
         eventsRef.current = nextEvents
         persistLocal(user.id, nextEvents, nextModifiedAt)
 
-        if (shouldPush) {
-          await Promise.all([
-            saveCloudSnapshot(
-              user.id,
-              nextEvents,
-              nextModifiedAt,
-            ),
-            syncNormalizedPlanner(
-              user.id,
-              nextEvents,
-            ),
-          ])
-        } else if (!normalized) {
+        if (
+          shouldPush &&
+          !normalizedReadFailed
+        ) {
           await syncNormalizedPlanner(
             user.id,
             nextEvents,
@@ -414,7 +375,11 @@ export function usePlanner() {
 
         skipNextCloudPushRef.current = true
         setEvents(nextEvents)
-        setCloudStatus('synced')
+        setCloudStatus(
+          normalizedReadFailed
+            ? 'error'
+            : 'synced',
+        )
         setAuthStatus('authenticated')
       } catch {
         if (cancelled) return
@@ -466,17 +431,10 @@ export function usePlanner() {
       setCloudStatus('syncing')
 
       try {
-        await Promise.all([
-          saveCloudSnapshot(
-            userId,
-            events,
-            modifiedAtRef.current,
-          ),
-          syncNormalizedPlanner(
-            userId,
-            events,
-          ),
-        ])
+        await syncNormalizedPlanner(
+          userId,
+          events,
+        )
         setCloudStatus('synced')
       } catch {
         setCloudStatus('error')

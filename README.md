@@ -121,3 +121,8 @@ A logical task now has an explicit `taskId`, while each calendar placement keeps
 ### Routine exceptions
 
 A recurring routine can now be skipped or overridden for a single date without changing the whole series. Exceptions are stored in `routine_exceptions` and applied when routine occurrences are projected into the visible calendar range.
+
+
+### Normalized source of truth
+
+Planner startup now reconciles only the normalized Supabase model with the per-user local cache. Newer local changes can be pushed back to the normalized tables, while a failed cloud read is never treated as permission to overwrite remote state. The former `planner_snapshots` bridge is no longer part of runtime synchronization.

@@ -1,4 +1,13 @@
+import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+
+export async function currentCloudUser(): Promise<User | null> {
+  if (!supabase) return null
+
+  const { data, error } = await supabase.auth.getUser()
+  if (error) return null
+  return data.user ?? null
+}
 
 function requireSupabase() {
   if (!supabase) {
