@@ -266,16 +266,6 @@ export async function syncNormalizedPlanner(
 ) {
   if (!supabase) return
 
-  const calendarEvents =
-    events.filter(
-      (event) =>
-        !event.virtual &&
-        isCalendarEntity(event),
-    )
-
-  const taskGroups = groupTaskEvents(events)
-  const taskIds = [...taskGroups.keys()]
-
   const [
     existingTasksResult,
     existingSegmentsResult,
@@ -302,14 +292,23 @@ export async function syncNormalizedPlanner(
     existingSegmentsResult,
     existingCalendarResult,
   ]) {
-    if (result.error) throw result.error
+    if (result.error) {
+      throw result.error
+    }
   }
 
-  const existingTaskById = new Map(
-    (existingTasksResult.data ?? []).map(
-      (task) => [task.id, task],
-    ),
-  )
+  const existingTaskById =
+    new Map(
+      (
+        existingTasksResult.data ??
+        []
+      ).map(
+        (task) => [
+          task.id,
+          task,
+        ],
+      ),
+    )
 
   const {
     taskIds,
@@ -318,189 +317,98 @@ export async function syncNormalizedPlanner(
     constraintRows,
     fixedTaskIds,
     calendarRows,
-  } = buildNormalizedPlannerRows(
-    userId,
-    events,
-    existingTaskById,
-  )
+  } =
+    buildNormalizedPlannerRows(
+      userId,
+      events,
+      existingTaskById,
+    )
 
   if (taskRows.length > 0) {
-    const { error } = await supabase
-      .from('tasks')
-      .upsert(taskRows, {
-        onConflict: 'id',
-      })
+    const { error } =
+      await supabase
+        .from('tasks')
+        .upsert(
+          taskRows,
+          {
+            onConflict: 'id',
+          },
+        )
 
     if (error) throw error
   }
-
-  const segmentRows =
-    [...taskGroups.entries()]
-      .flatMap(
-        ([taskId, segments]) =>
-          segments
-            .filter(
-              (event) => event.date,
-            )
-            .map((event, index) => ({
-              id: event.id,
-              user_id: userId,
-              task_id: taskId,
-              routine_id: null,
-              starts_at:
-                localDateTimeToIso(
-                  event.date!,
-                  event.startMin,
-                ),
-              ends_at:
-                localDateTimeToIso(
-                  event.date!,
-                  event.startMin +
-                    event.durationMin,
-                ),
-              segment_index:
-                event.segmentIndex ??
-                index,
-              status:
-                event.completed
-                  ? 'completed'
-                  : 'planned',
-            })),
-      )
 
   if (segmentRows.length > 0) {
-    const { error } = await supabase
-      .from('planned_segments')
-      .upsert(segmentRows, {
-        onConflict: 'id',
-      })
+    const { error } =
+      await supabase
+        .from(
+          'planned_segments',
+        )
+        .upsert(
+          segmentRows,
+          {
+            onConflict: 'id',
+          },
+        )
 
     if (error) throw error
   }
 
-  const constraintRows =
-    [...taskGroups.entries()]
-      .filter(
-        ([, segments]) =>
-          segments[0]?.kind ===
-          'flexible',
-      )
-      .map(([taskId, segments]) => {
-        const primary = segments[0]
-
-        return {
-          task_id: taskId,
-          user_id: userId,
-          earliest_date:
-            segments
-              .map(
-                (event) =>
-                  event.date,
-              )
-              .filter(
-                (
-                  value,
-                ): value is string =>
-                  Boolean(value),
-              )
-              .sort()[0] ?? null,
-          deadline_date:
-            primary.deadlineDate ??
-            (
-              primary.date &&
-              primary.deadlineDay !==
-                undefined
-                ? dateForWeekday(
-                    primary.date,
-                    primary.deadlineDay,
-                  )
-                : null
-            ),
-          window_start:
-            timeValue(
-              primary.windowStartMin,
-            ),
-          window_end:
-            timeValue(
-              primary.windowEndMin,
-            ),
-          energy:
-            primary.energy ?? null,
-          splittable:
-            segments.length > 1 ||
-            Boolean(
-              primary.splittable,
-            ),
-          min_chunk_min:
-            primary.minChunkMin ??
-            null,
-        }
-      })
-
-  if (constraintRows.length > 0) {
-    const { error } = await supabase
-      .from('task_constraints')
-      .upsert(constraintRows, {
-        onConflict: 'task_id',
-      })
+  if (
+    constraintRows.length >
+    0
+  ) {
+    const { error } =
+      await supabase
+        .from(
+          'task_constraints',
+        )
+        .upsert(
+          constraintRows,
+          {
+            onConflict:
+              'task_id',
+          },
+        )
 
     if (error) throw error
   }
 
-  const fixedTaskIds =
-    [...taskGroups.entries()]
-      .filter(
-        ([, segments]) =>
-          segments[0]?.kind !==
-          'flexible',
-      )
-      .map(([taskId]) => taskId)
-
-  if (fixedTaskIds.length > 0) {
-    const { error } = await supabase
-      .from('task_constraints')
-      .delete()
-      .eq('user_id', userId)
-      .in('task_id', fixedTaskIds)
+  if (
+    fixedTaskIds.length > 0
+  ) {
+    const { error } =
+      await supabase
+        .from(
+          'task_constraints',
+        )
+        .delete()
+        .eq(
+          'user_id',
+          userId,
+        )
+        .in(
+          'task_id',
+          fixedTaskIds,
+        )
 
     if (error) throw error
   }
 
-  const calendarRows =
-    calendarEvents
-      .filter(
-        (event) => event.date,
-      )
-      .map((event) => ({
-        id: event.id,
-        user_id: userId,
-        project_id:
-          event.projectId ?? null,
-        title: event.title,
-        category: event.category,
-        starts_at:
-          localDateTimeToIso(
-            event.date!,
-            event.startMin,
-          ),
-        ends_at:
-          localDateTimeToIso(
-            event.date!,
-            event.startMin +
-              event.durationMin,
-          ),
-        locked:
-          Boolean(event.locked),
-        source: 'manual',
-        external_id: null,
-      }))
-
-  if (calendarRows.length > 0) {
-    const { error } = await supabase
-      .from('calendar_events')
-      .upsert(calendarRows, {
-        onConflict: 'id',
-      })
+  if (
+    calendarRows.length > 0
+  ) {
+    const { error } =
+      await supabase
+        .from(
+          'calendar_events',
+        )
+        .upsert(
+          calendarRows,
+          {
+            onConflict: 'id',
+          },
+        )
 
     if (error) throw error
   }
@@ -508,23 +416,42 @@ export async function syncNormalizedPlanner(
   const nextSegmentIds =
     new Set(
       segmentRows.map(
-        (segment) => segment.id,
+        (segment) =>
+          segment.id,
       ),
     )
+
   const staleSegmentIds =
-    (existingSegmentsResult.data ?? [])
-      .map((segment) => segment.id)
+    (
+      existingSegmentsResult.data ??
+      []
+    )
+      .map(
+        (segment) =>
+          segment.id,
+      )
       .filter(
         (id) =>
           !nextSegmentIds.has(id),
       )
 
-  if (staleSegmentIds.length > 0) {
-    const { error } = await supabase
-      .from('planned_segments')
-      .delete()
-      .eq('user_id', userId)
-      .in('id', staleSegmentIds)
+  if (
+    staleSegmentIds.length > 0
+  ) {
+    const { error } =
+      await supabase
+        .from(
+          'planned_segments',
+        )
+        .delete()
+        .eq(
+          'user_id',
+          userId,
+        )
+        .in(
+          'id',
+          staleSegmentIds,
+        )
 
     if (error) throw error
   }
@@ -535,29 +462,57 @@ export async function syncNormalizedPlanner(
         (event) => event.id,
       ),
     )
+
   const staleCalendarIds =
-    (existingCalendarResult.data ?? [])
-      .map((event) => event.id)
+    (
+      existingCalendarResult.data ??
+      []
+    )
+      .map(
+        (event) =>
+          event.id,
+      )
       .filter(
         (id) =>
-          !nextCalendarIds.has(id),
+          !nextCalendarIds.has(
+            id,
+          ),
       )
 
-  if (staleCalendarIds.length > 0) {
-    const { error } = await supabase
-      .from('calendar_events')
-      .delete()
-      .eq('user_id', userId)
-      .eq('source', 'manual')
-      .in('id', staleCalendarIds)
+  if (
+    staleCalendarIds.length >
+    0
+  ) {
+    const { error } =
+      await supabase
+        .from(
+          'calendar_events',
+        )
+        .delete()
+        .eq(
+          'user_id',
+          userId,
+        )
+        .eq(
+          'source',
+          'manual',
+        )
+        .in(
+          'id',
+          staleCalendarIds,
+        )
 
     if (error) throw error
   }
 
   const currentTaskIds =
     new Set(taskIds)
+
   const staleScheduledIds =
-    (existingTasksResult.data ?? [])
+    (
+      existingTasksResult.data ??
+      []
+    )
       .filter(
         (task) =>
           task.status !== 'open' &&
@@ -565,19 +520,26 @@ export async function syncNormalizedPlanner(
             task.id,
           ),
       )
-      .map((task) => task.id)
+      .map(
+        (task) => task.id,
+      )
 
   if (
-    staleScheduledIds.length > 0
+    staleScheduledIds.length >
+    0
   ) {
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .eq('user_id', userId)
-      .in(
-        'id',
-        staleScheduledIds,
-      )
+    const { error } =
+      await supabase
+        .from('tasks')
+        .delete()
+        .eq(
+          'user_id',
+          userId,
+        )
+        .in(
+          'id',
+          staleScheduledIds,
+        )
 
     if (error) throw error
   }
