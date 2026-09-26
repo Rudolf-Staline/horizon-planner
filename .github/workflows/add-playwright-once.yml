@@ -1,0 +1,43 @@
+name: Add Playwright once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/add-playwright-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  add:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Add Playwright exactly
+        run: npm install --save-dev --save-exact @playwright/test --ignore-scripts --no-audit --no-fund
+
+      - name: Remove one-time workflow
+        run: rm .github/workflows/add-playwright-once.yml
+
+      - name: Commit deterministic browser-test dependency
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json .github/workflows/add-playwright-once.yml
+          git commit -m "build: add pinned Playwright test dependency"
+          git push
