@@ -267,7 +267,7 @@ export function EventCard({
       gesture.current.mode === 'resize'
     ) {
       suppressClickUntil.current =
-        performance.now() + 300
+        performance.now() + 75
     }
 
     gesture.current = null

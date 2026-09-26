@@ -221,7 +221,9 @@ test(
       ),
     ).toBeGreaterThan(20)
 
-    await card.click()
+    await card.click({
+      delay: 100,
+    })
 
     await expect(card)
       .toHaveAttribute(
