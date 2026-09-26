@@ -15,7 +15,7 @@ export type InlineTaskDraft = {
 export function buildInlineTask(
   draft: InlineTaskDraft,
   title: string,
-  id = crypto.randomUUID(),
+  id: string = crypto.randomUUID(),
 ): PlannerEvent {
   const deadline =
     addDays(
