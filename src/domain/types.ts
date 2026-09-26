@@ -5,7 +5,6 @@ export type Category =
   | 'focus'
   | 'routine'
   | 'admin'
-  | 'flexible'
   | 'neutral'
 
 export type Priority = 'low' | 'medium' | 'high'

@@ -15,6 +15,5 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   focus: 'Focus',
   routine: 'Routine',
   admin: 'Administratif',
-  flexible: 'Flexible',
   neutral: 'Autre',
 }

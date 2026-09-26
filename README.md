@@ -151,3 +151,8 @@ Top-level npm dependencies are pinned to exact validated versions and the full t
 ### Mobile navigation and touch scheduling
 
 Small screens now keep all primary product sections reachable through a persistent bottom navigation. The day calendar adapts its column width to the viewport, empty time slots can be created with a touch, touch resize handles stay discoverable, and non-functional header placeholders were removed.
+
+
+### Flexible is behavior, not a category
+
+`flexible` now exists only as a scheduling `kind`. Domain categories are limited to course, project, personal, focus, routine, admin and neutral. Legacy planner events using `category = flexible` are migrated to `neutral` while preserving their flexible scheduling behavior.

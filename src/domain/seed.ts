@@ -30,7 +30,7 @@ export const seedEvents: PlannerEvent[] = [
   { id: 'r5', title: 'Sport', day: 4, startMin: 420, durationMin: 45, category: 'routine', kind: 'fixed' },
   { id: 'c5', title: 'Cours – RO', day: 4, startMin: 480, durationMin: 90, category: 'course', kind: 'fixed' },
   { id: 'w1', title: 'Écriture', day: 4, startMin: 840, durationMin: 120, category: 'focus', kind: 'flexible', windowStartMin: 780, windowEndMin: 1080 },
-  { id: 'pl1', title: 'Planification', day: 4, startMin: 990, durationMin: 60, category: 'flexible', kind: 'flexible', windowStartMin: 960, windowEndMin: 1140 },
+  { id: 'pl1', title: 'Planification', day: 4, startMin: 990, durationMin: 60, category: 'neutral', kind: 'flexible', windowStartMin: 960, windowEndMin: 1140 },
   { id: 's1', title: 'Sortie / Amis', day: 4, startMin: 1140, durationMin: 120, category: 'personal', kind: 'fixed' },
 
   { id: 'h1', title: 'Randonnée', day: 5, startMin: 480, durationMin: 180, category: 'routine', kind: 'fixed' },

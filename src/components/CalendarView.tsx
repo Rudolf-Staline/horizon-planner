@@ -321,7 +321,6 @@ export function CalendarView({
           <span><i className="dot focus"/>Focus</span>
           <span><i className="dot routine"/>Routine</span>
           <span><i className="dot admin"/>Administratif</span>
-          <span><i className="dot flexible"/>Flexible</span>
           <span><i className="dot neutral"/>Autre</span>
         </div>
         <p className="hint">

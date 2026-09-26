@@ -119,6 +119,32 @@ function migrateLegacyEventIds(
 }
 
 
+function migrateLegacyFlexibleCategory(
+  events: PlannerEvent[],
+) {
+  let changed = false
+
+  const migrated = events.map((event) => {
+    if (
+      (event as { category?: string }).category !==
+      'flexible'
+    ) {
+      return event
+    }
+
+    changed = true
+    return {
+      ...event,
+      category: 'neutral' as const,
+    }
+  })
+
+  return {
+    events: migrated,
+    changed,
+  }
+}
+
 function migratePlannerIdentity(
   events: PlannerEvent[],
 ) {
@@ -344,6 +370,17 @@ export function usePlanner() {
         if (idMigration.changed) {
           nextEvents =
             idMigration.events
+          nextModifiedAt = Date.now()
+          shouldPush = true
+        }
+
+        const categoryMigration =
+          migrateLegacyFlexibleCategory(
+            nextEvents,
+          )
+        if (categoryMigration.changed) {
+          nextEvents =
+            categoryMigration.events
           nextModifiedAt = Date.now()
           shouldPush = true
         }
