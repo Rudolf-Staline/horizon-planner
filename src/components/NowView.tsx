@@ -2,6 +2,10 @@ import { Pause, Play, Square } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
 import {
+  logicalTaskId,
+  taskProgress,
+} from '../domain/taskIdentity'
+import {
   formatLongDate,
   toISODate,
 } from '../utils/date'
@@ -9,12 +13,14 @@ import { formatTime } from '../utils/time'
 
 interface Props {
   events: PlannerEvent[]
-  onComplete: (id: string) => void
+  onCompleteSegment: (id: string) => void
+  onCompleteTask: (id: string) => void
 }
 
 export function NowView({
   events,
-  onComplete,
+  onCompleteSegment,
+  onCompleteTask,
 }: Props) {
   const [now, setNow] = useState(() => new Date())
   const [paused, setPaused] = useState(false)
@@ -84,6 +90,48 @@ export function NowView({
           )
         : 0
 
+  const taskSegments = useMemo(() => {
+    if (
+      !next ||
+      next.entityType !== 'task'
+    ) {
+      return []
+    }
+
+    const taskId =
+      logicalTaskId(next)
+
+    return events
+      .filter(
+        (event) =>
+          event.entityType === 'task' &&
+          logicalTaskId(event) === taskId,
+      )
+      .sort(
+        (a, b) =>
+          (a.segmentIndex ?? 0) -
+            (b.segmentIndex ?? 0) ||
+          (a.date ?? '').localeCompare(
+            b.date ?? '',
+          ) ||
+          a.startMin - b.startMin,
+      )
+  }, [events, next])
+
+  const progress =
+    taskProgress(taskSegments)
+  const multiSegment =
+    taskSegments.length > 1
+  const segmentPosition =
+    multiSegment && next
+      ? (
+          taskSegments.findIndex(
+            (segment) =>
+              segment.id === next.id,
+          ) + 1
+        )
+      : 0
+
   return (
     <main className="now-page">
       <div className="now-time">
@@ -113,6 +161,37 @@ export function NowView({
               ? 'Une seule chose à la fois.'
               : `Prévue à ${formatTime(next.startMin)}.`}
           </p>
+
+          {multiSegment && (
+            <div className="now-task-progress">
+              <div>
+                <span>
+                  Bloc {segmentPosition}/{progress.totalSegments}
+                </span>
+                <strong>
+                  {progress.percent}%
+                </strong>
+              </div>
+              <div className="now-task-progress-track">
+                <i
+                  style={{
+                    width:
+                      progress.percent +
+                      '%',
+                  }}
+                />
+              </div>
+              <small>
+                {progress.completedSegments}/
+                {progress.totalSegments}
+                {' '}blocs terminés ·{' '}
+                {progress.completedDuration}/
+                {progress.totalDuration}
+                {' '}min
+              </small>
+            </div>
+          )}
+
           <div className="remaining">
             {remaining} min {current
               ? 'restantes'
@@ -135,10 +214,28 @@ export function NowView({
             {!next.virtual && (
               <button
                 onClick={() =>
-                  onComplete(next.id)}
+                  onCompleteSegment(
+                    next.id,
+                  )}
               >
                 <Square size={16}/>
-                Terminer
+                {multiSegment
+                  ? 'Terminer ce bloc'
+                  : 'Terminer'}
+              </button>
+            )}
+
+            {!next.virtual &&
+              multiSegment && (
+              <button
+                className="complete-task"
+                onClick={() =>
+                  onCompleteTask(
+                    next.id,
+                  )}
+              >
+                <Square size={16}/>
+                Terminer la tâche
               </button>
             )}
           </div>
@@ -167,7 +264,12 @@ export function NowView({
               <time>
                 {formatTime(event.startMin)}
               </time>
-              <span>{event.title}</span>
+              <span>
+                {event.title}
+                {(event.segmentCount ?? 1) >
+                  1 &&
+                  ` · bloc ${(event.segmentIndex ?? 0) + 1}/${event.segmentCount}`}
+              </span>
             </div>
           ))
         )}

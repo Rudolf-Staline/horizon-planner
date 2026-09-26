@@ -199,3 +199,8 @@ Logical task completion and deletion are now pure domain operations rather than 
 ### Conservative adaptive replanning
 
 Conflict suggestions now distinguish movable flexible work from fixed commitments. A conflicting flexible task can be proposed for relocation while a fixed event stays in place. Fixed/fixed conflicts and ambiguous cases with several movable conflicts deliberately produce no automatic choice; the user keeps final control through an explicit Apply action.
+
+
+### Task-aware Now mode
+
+Now mode understands multi-segment tasks. It shows the active block position, task-level completion percentage and completed/total duration, while keeping separate actions for finishing the current block or the entire logical task.

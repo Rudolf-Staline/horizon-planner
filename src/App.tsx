@@ -365,8 +365,11 @@ export default function App() {
         {section === 'focus' && (
           <NowView
             events={calendarEvents}
-            onComplete={
+            onCompleteSegment={
               planner.toggleCompleted
+            }
+            onCompleteTask={
+              planner.toggleTaskCompleted
             }
           />
         )}
