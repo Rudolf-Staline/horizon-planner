@@ -318,25 +318,16 @@ export function QuickCreate({
             {advanced && (
               <div className="advanced-options">
                 <label>
-                  <span>Deadline</span>
-                  <select
-                    value={deadlineDay}
+                  <span>Échéance</span>
+                  <input
+                    type="date"
+                    min={date}
+                    value={deadlineDate}
                     onChange={(event) =>
-                      setDeadlineDay(
-                        Number(event.target.value),
+                      setDeadlineDate(
+                        event.target.value,
                       )}
-                  >
-                    {DAY_LABELS.slice(day).map(
-                      (label, index) => (
-                        <option
-                          key={label}
-                          value={day + index}
-                        >
-                          {label}
-                        </option>
-                      ),
-                    )}
-                  </select>
+                  />
                 </label>
 
                 <label>
