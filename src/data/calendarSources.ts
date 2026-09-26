@@ -28,7 +28,14 @@ export async function createCalendarSource(userId: string, input: { provider: Ca
 }
 
 export async function deleteCalendarSource(sourceId: string) {
-  const { error } = await requireSupabase().from('calendar_sources').delete().eq('id', sourceId)
+  const client = requireSupabase()
+  const { error: eventError } = await client
+    .from('calendar_events')
+    .delete()
+    .like('external_id', `${sourceId}:%`)
+  if (eventError) throw eventError
+
+  const { error } = await client.from('calendar_sources').delete().eq('id', sourceId)
   if (error) throw error
 }
 
@@ -37,5 +44,5 @@ export async function syncCalendarSource(sourceId: string) {
   const { data, error } = await client.functions.invoke('sync-ics', { body: { sourceId } })
   if (error) throw error
   if (data?.error) throw new Error(data.error)
-  return data as { imported: number }
+  return data as { imported: number; deletedExternalIds?: string[] }
 }

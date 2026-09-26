@@ -13,23 +13,26 @@ import type {
 import {
   buildWeeklyAnalytics,
 } from '../domain/weeklyAnalytics'
+import { fromISODate } from '../utils/date'
 
 export function AnalyticsView({
   events,
   weekStartsOn = 1,
+  anchorDate,
 }: {
   events: PlannerEvent[]
   weekStartsOn?: number
+  anchorDate: string
 }) {
   const metrics =
     useMemo(
       () =>
         buildWeeklyAnalytics(
           events,
-          new Date(),
+          fromISODate(anchorDate),
           weekStartsOn,
         ),
-      [events, weekStartsOn],
+      [events, weekStartsOn, anchorDate],
     )
 
   const hours = (
@@ -66,7 +69,7 @@ export function AnalyticsView({
           </span>
           <strong>
             {hours(
-              metrics.totalMinutes,
+              metrics.plannedMinutes,
             )}{' '}h
           </strong>
         </article>

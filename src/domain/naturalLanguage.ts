@@ -46,11 +46,16 @@ function fold(value: string) {
     .toLowerCase()
 }
 
-function clock(hours: string, minutes?: string) {
+function clock(
+  hours: string,
+  minutes: string | undefined,
+  startMin: number,
+  endMin: number,
+) {
   return Math.min(
-    END_MIN,
+    endMin,
     Math.max(
-      START_MIN,
+      startMin,
       Number(hours) * 60 +
         Number(minutes || 0),
     ),
@@ -182,6 +187,8 @@ export function parseQuickTask(
   contextDate = toISODate(new Date()),
   contextStartMin = START_MIN,
   defaultDurationMin = 60,
+  workdayStartMin = START_MIN,
+  workdayEndMin = END_MIN,
 ): ParsedTask | null {
   const original = input.trim()
   if (!original) return null
@@ -315,6 +322,8 @@ export function parseQuickTask(
     windowStartMin = clock(
       after[1],
       after[2],
+      workdayStartMin,
+      workdayEndMin,
     )
     startMin = windowStartMin
   }
@@ -323,6 +332,8 @@ export function parseQuickTask(
     windowEndMin = clock(
       before[1],
       before[2],
+      workdayStartMin,
+      workdayEndMin,
     )
   }
 
@@ -330,6 +341,8 @@ export function parseQuickTask(
     startMin = clock(
       exact[1],
       exact[2],
+      workdayStartMin,
+      workdayEndMin,
     )
   }
 
@@ -339,14 +352,14 @@ export function parseQuickTask(
 
   if (/\bmatin\b/.test(text)) {
     energy = 'high'
-    windowStartMin ??= 8 * 60
-    windowEndMin ??= 12 * 60
+    windowStartMin ??= Math.max(workdayStartMin, 8 * 60)
+    windowEndMin ??= Math.min(workdayEndMin, 12 * 60)
   } else if (
     /\bsoir|soiree\b/.test(text)
   ) {
     energy = 'low'
-    windowStartMin ??= 18 * 60
-    windowEndMin ??= END_MIN
+    windowStartMin ??= Math.max(workdayStartMin, 18 * 60)
+    windowEndMin ??= workdayEndMin
   }
 
   const category = inferCategory(text)

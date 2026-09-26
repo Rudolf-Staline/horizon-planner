@@ -73,10 +73,9 @@ export async function loadNormalizedPlanner(
     supabase
       .from('calendar_events')
       .select(
-        'id,project_id,title,category,starts_at,ends_at,locked,updated_at',
+        'id,project_id,title,category,starts_at,ends_at,locked,source,external_id,updated_at',
       )
-      .eq('user_id', userId)
-      .eq('source', 'manual'),
+      .eq('user_id', userId),
   ])
 
   for (const result of [
@@ -218,6 +217,8 @@ export async function loadNormalizedPlanner(
     events.push({
       id: item.id,
       entityType: 'calendar',
+      source: item.source,
+      externalId: item.external_id ?? undefined,
       title: item.title,
       date: zonedDateToIso(starts, timeZone),
       day: weekdayIndex(fromISODate(zonedDateToIso(starts, timeZone))),
@@ -233,7 +234,7 @@ export async function loadNormalizedPlanner(
       category: item.category,
       projectId: item.project_id ?? undefined,
       kind: 'fixed',
-      locked: item.locked,
+      locked: item.source === 'manual' ? item.locked : true,
     })
   }
 

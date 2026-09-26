@@ -6,6 +6,7 @@ import {
   weekdayIndex,
 } from '../utils/date'
 import type { EnergyLevel, Placement, PlannerEvent, Priority } from './types'
+import type { EnergyPreference } from './preferences'
 
 export type SchedulingOptions = {
   startMin?: number
@@ -13,6 +14,8 @@ export type SchedulingOptions = {
   activeDays?: number[]
   bufferMin?: number
   planningStepMin?: number
+  focusBlockMin?: number
+  energyPreference?: EnergyPreference
 }
 
 export function overlaps(
@@ -127,7 +130,13 @@ export function scorePlacement(
   return (
     dayDistance * 80 +
     timeDistance * 1.5 +
-    energyPenalty(event.energy, placement.startMin) +
+    energyPenalty(
+      event.energy ??
+        (options.energyPreference === 'balanced'
+          ? undefined
+          : options.energyPreference),
+      placement.startMin,
+    ) +
     daysLeftAfterPlacement * -urgency
   )
 }
@@ -357,7 +366,10 @@ export function planSplitTask(
   const blocked = [...events]
 
   while (remaining > 0) {
-    const targetChunk = Math.min(remaining, 90)
+    const targetChunk = Math.min(
+      remaining,
+      options.focusBlockMin ?? 90,
+    )
     let selected: Placement | null = null
 
     for (

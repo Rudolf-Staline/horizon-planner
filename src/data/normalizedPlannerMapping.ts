@@ -48,7 +48,8 @@ export function buildNormalizedPlannerRows(
     events.filter(
       (event) =>
         !event.virtual &&
-        isCalendarEntity(event),
+        isCalendarEntity(event) &&
+        (event.source ?? 'manual') === 'manual',
     )
 
   const taskGroups =

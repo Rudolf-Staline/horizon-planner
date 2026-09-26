@@ -6,13 +6,14 @@ import { planFlexibleTask, type SchedulingOptions } from '../domain/scheduling'
 import type { PlannerEvent } from '../domain/types'
 import {
   eventDateLabel,
-  fromISODate,
-  toISODate,
 } from '../utils/date'
 import {
   formatTime,
-  nextSnapMinute,
 } from '../utils/time'
+import {
+  zonedDateMinutes,
+  zonedDateToIso,
+} from '../utils/timezone'
 
 interface Props {
   events: PlannerEvent[]
@@ -21,6 +22,7 @@ interface Props {
   onCreate: (events: PlannerEvent[]) => void
   schedulingOptions?: SchedulingOptions
   defaultDurationMin?: number
+  timeZone: string
 }
 
 export function CommandPalette({
@@ -30,20 +32,28 @@ export function CommandPalette({
   onCreate,
   schedulingOptions,
   defaultDurationMin = 60,
+  timeZone,
 }: Props) {
   const [value, setValue] = useState('')
   const [error, setError] =
     useState<string | null>(null)
 
-  const context = fromISODate(contextDate)
   const now = new Date()
+  const planningStepMin =
+    schedulingOptions?.planningStepMin ?? 15
   const contextStartMin =
-    toISODate(now) === contextDate
-      ? nextSnapMinute(
-          now.getHours() * 60 +
-            now.getMinutes(),
+    zonedDateToIso(now, timeZone) === contextDate
+      ? Math.min(
+          schedulingOptions?.endMin ?? 22 * 60,
+          Math.max(
+            schedulingOptions?.startMin ?? START_MIN,
+            Math.ceil(
+              zonedDateMinutes(now, timeZone) /
+                planningStepMin,
+            ) * planningStepMin,
+          ),
         )
-      : START_MIN
+      : schedulingOptions?.startMin ?? START_MIN
 
   const parsed = useMemo(
     () =>
@@ -52,8 +62,17 @@ export function CommandPalette({
         contextDate,
         contextStartMin,
         defaultDurationMin,
+        schedulingOptions?.startMin,
+        schedulingOptions?.endMin,
       ),
-    [value, contextDate, contextStartMin, defaultDurationMin],
+    [
+      value,
+      contextDate,
+      contextStartMin,
+      defaultDurationMin,
+      schedulingOptions?.startMin,
+      schedulingOptions?.endMin,
+    ],
   )
 
   const draftPreview = useMemo(() => {

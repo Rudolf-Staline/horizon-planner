@@ -195,6 +195,27 @@ describe('normalized planner mapping', () => {
     })
   })
 
+  it('never projects read-only external events into manual sync rows', () => {
+    const external: PlannerEvent = {
+      id: 'external-event',
+      entityType: 'calendar',
+      source: 'google',
+      externalId: 'source-1:event-1',
+      title: 'Réunion externe',
+      date: '2026-09-28',
+      day: 0,
+      startMin: 14 * 60,
+      durationMin: 60,
+      category: 'neutral',
+      kind: 'fixed',
+      locked: true,
+    }
+
+    const rows = buildNormalizedPlannerRows('user-1', [external], new Map())
+
+    expect(rows.calendarRows).toEqual([])
+  })
+
   it('excludes virtual routine occurrences from persistence projection', () => {
     const routine:
       PlannerEvent = {

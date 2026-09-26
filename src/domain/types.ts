@@ -11,6 +11,7 @@ export type Priority = 'low' | 'medium' | 'high'
 export type EventKind = 'fixed' | 'flexible'
 export type EnergyLevel = 'low' | 'medium' | 'high'
 export type PlannerEntityType = 'task' | 'calendar' | 'routine'
+export type CalendarEventSource = 'manual' | 'google' | 'outlook' | 'ics'
 
 export interface PlannerEvent {
   id: string
@@ -31,6 +32,8 @@ export interface PlannerEvent {
    * migrated on load.
    */
   entityType?: PlannerEntityType
+  source?: CalendarEventSource
+  externalId?: string
   taskId?: string
   segmentIndex?: number
   segmentCount?: number

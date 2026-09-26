@@ -101,3 +101,17 @@ describe('parseQuickTask', () => {
     expect(parsed!.kind).toBe('flexible')
     expect(parsed!.startMin).toBe(7 * 60)
   })
+
+  it('uses configured workday bounds for explicit clock constraints', () => {
+    const parsed = parseQuickTask(
+      'Réviser à 6h avant vendredi',
+      '2026-09-23',
+      8 * 60,
+      60,
+      8 * 60,
+      18 * 60,
+    )
+
+    expect(parsed).not.toBeNull()
+    expect(parsed!.startMin).toBe(8 * 60)
+  })

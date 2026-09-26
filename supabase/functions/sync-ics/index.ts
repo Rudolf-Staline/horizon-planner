@@ -102,8 +102,9 @@ Deno.serve(async (req) => {
     if (req.method !== "POST") return respond(req, { error: "Method not allowed" }, 405);
     const user = await userFromRequest(req);
     const { sourceId } = await req.json().catch(() => ({}));
-    const { data: source, error: sourceError } = await admin.from("calendar_sources").select("id,provider,feed_url,name").eq("id", sourceId).eq("user_id", user.id).single();
+    const { data: source, error: sourceError } = await admin.from("calendar_sources").select("id,provider,feed_url,name,enabled").eq("id", sourceId).eq("user_id", user.id).single();
     if (sourceError || !source) return respond(req, { error: "Source introuvable." }, 404);
+    if (!source.enabled) return respond(req, { error: "Cette source est désactivée." }, 409);
     const feedUrl = assertPublicFeed(source.feed_url);
     const response = await fetch(feedUrl, { headers: { Accept: "text/calendar,text/plain;q=0.9" } });
     if (!response.ok) throw new Error(`Le flux a répondu ${response.status}.`);
@@ -113,8 +114,17 @@ Deno.serve(async (req) => {
       const { error } = await admin.from("calendar_events").upsert(rows, { onConflict: "user_id,source,external_id" });
       if (error) throw error;
     }
+    const { data: existing, error: existingError } = await admin.from("calendar_events").select("id,external_id").eq("user_id", user.id).eq("source", source.provider).like("external_id", `${source.id}:%`);
+    if (existingError) throw existingError;
+    const importedIds = new Set(rows.map((row) => row.external_id));
+    const staleIds = (existing ?? []).filter((event) => !event.external_id || !importedIds.has(event.external_id)).map((event) => event.id);
+    const deletedExternalIds = (existing ?? []).filter((event) => event.external_id && !importedIds.has(event.external_id)).map((event) => event.external_id as string);
+    if (staleIds.length > 0) {
+      const { error } = await admin.from("calendar_events").delete().eq("user_id", user.id).in("id", staleIds);
+      if (error) throw error;
+    }
     await admin.from("calendar_sources").update({ last_synced_at: new Date().toISOString(), last_error: null }).eq("id", source.id).eq("user_id", user.id);
-    return respond(req, { imported: rows.length });
+    return respond(req, { imported: rows.length, deletedExternalIds });
   } catch (cause) {
     if (cause instanceof Response) return new Response(await cause.text(), { status: cause.status, headers: cors(req) });
     return respond(req, { error: cause instanceof Error ? cause.message : "Synchronisation impossible." }, 500);

@@ -59,4 +59,22 @@ describe('portable calendar formats', () => {
     expect(ics).toContain('DTSTART:20260928T080000Z')
     expect(ics).toContain('DTEND:20260928T090000Z')
   })
+
+  it('exports configured local times as UTC instants', () => {
+    const ics = plannerEventsToIcs([{
+      id: 'task-ny',
+      entityType: 'calendar',
+      title: 'Réunion New York',
+      date: '2026-01-15',
+      day: 3,
+      startMin: 8 * 60,
+      durationMin: 60,
+      category: 'neutral',
+      kind: 'fixed',
+      locked: true,
+    }], 'America/New_York')
+
+    expect(ics).toContain('DTSTART:20260115T130000Z')
+    expect(ics).toContain('DTEND:20260115T140000Z')
+  })
 })

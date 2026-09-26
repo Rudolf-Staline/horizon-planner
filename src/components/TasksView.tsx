@@ -34,6 +34,7 @@ import {
   type Project,
 } from '../data/projects'
 import {
+  addDays,
   eventDateLabel,
   fromISODate,
   toISODate,
@@ -54,13 +55,12 @@ interface Props {
   onCreateScheduled: (
     event: PlannerEvent,
   ) => void
+  defaultDurationMin: number
+  todayDate: string
 }
 
-const tomorrowDate = () => {
-  const next = new Date()
-  next.setDate(next.getDate() + 1)
-  return toISODate(next)
-}
+const tomorrowDate = (todayDate: string) =>
+  toISODate(addDays(fromISODate(todayDate), 1))
 
 export function TasksView({
   userId,
@@ -68,6 +68,8 @@ export function TasksView({
   onToggleTask,
   onSelect,
   onCreateScheduled,
+  defaultDurationMin,
+  todayDate,
 }: Props) {
   const [filter, setFilter] =
     useState<FilterMode>('open')
@@ -82,7 +84,7 @@ export function TasksView({
   const [title, setTitle] =
     useState('')
   const [duration, setDuration] =
-    useState(60)
+    useState(defaultDurationMin)
   const [priority, setPriority] =
     useState<Priority>('medium')
   const [category, setCategory] =
@@ -99,7 +101,7 @@ export function TasksView({
   const [planningId, setPlanningId] =
     useState<string | null>(null)
   const [planningDate, setPlanningDate] =
-    useState(tomorrowDate)
+    useState(() => tomorrowDate(todayDate))
   const [planningTime, setPlanningTime] =
     useState('09:00')
 
@@ -133,6 +135,18 @@ export function TasksView({
         .catch(() => setProjects([])),
     ])
   }, [refreshInbox, userId])
+
+  useEffect(() => {
+    if (!creating) {
+      setDuration(defaultDurationMin)
+    }
+  }, [creating, defaultDurationMin])
+
+  useEffect(() => {
+    if (!planningId) {
+      setPlanningDate(tomorrowDate(todayDate))
+    }
+  }, [planningId, todayDate])
 
   const scheduled = useMemo(() => {
     const normalized =
@@ -235,7 +249,7 @@ export function TasksView({
       )
 
       setTitle('')
-      setDuration(60)
+      setDuration(defaultDurationMin)
       setPriority('medium')
       setCategory('neutral')
       setProjectId('')
@@ -446,6 +460,23 @@ export function TasksView({
                   ),
                 )}
             >
+              {![
+                15,
+                30,
+                45,
+                60,
+                90,
+                120,
+                180,
+                240,
+              ].includes(duration) && (
+                <option value={duration}>
+                  {duration} min
+                </option>
+              )}
+              <option value={15}>
+                15 min
+              </option>
               <option value={30}>
                 30 min
               </option>
@@ -463,6 +494,9 @@ export function TasksView({
               </option>
               <option value={180}>
                 3 h
+              </option>
+              <option value={240}>
+                4 h
               </option>
             </select>
           </label>

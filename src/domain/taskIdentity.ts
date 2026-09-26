@@ -14,6 +14,14 @@ export function isCalendarEntity(event: PlannerEvent) {
   return event.kind === 'fixed' && Boolean(event.locked)
 }
 
+export function isReadOnlyCalendarEvent(event: PlannerEvent | null | undefined) {
+  if (!event) return false
+  return (
+    isCalendarEntity(event) &&
+    Boolean(event.source && event.source !== 'manual')
+  )
+}
+
 export function isTaskEntity(event: PlannerEvent) {
   if (event.virtual || event.entityType === 'routine') {
     return false

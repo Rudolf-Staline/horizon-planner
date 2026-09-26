@@ -3,6 +3,7 @@ import {
   conflictsFor,
   findBestPlacement,
   overlaps,
+  planSplitTask,
   planFlexibleTask,
 } from './scheduling'
 import type { PlannerEvent } from './types'
@@ -106,6 +107,36 @@ describe('constraint placement', () => {
     const plan = planFlexibleTask(event, [blocker])
     expect(plan?.kind).toBe('split')
     expect(plan?.placements.reduce((sum, p) => sum + p.durationMin, 0)).toBe(120)
+  })
+
+  it('uses the configured focus block when splitting a task', () => {
+    const event = base({
+      durationMin: 120,
+      splittable: true,
+      minChunkMin: 30,
+      windowStartMin: 9 * 60,
+      windowEndMin: 13 * 60,
+    })
+
+    const plan = planSplitTask(event, [], { focusBlockMin: 45 })
+
+    expect(plan).not.toBeNull()
+    expect(plan!.map((placement) => placement.durationMin)).toEqual([45, 45, 30])
+  })
+
+  it('applies the preferred energy profile to tasks without explicit energy', () => {
+    const event = base({
+      startMin: 7 * 60,
+      windowStartMin: 7 * 60,
+      windowEndMin: 22 * 60,
+      deadlineDay: 0,
+    })
+
+    const high = findBestPlacement(event, [], { energyPreference: 'high' })
+    const low = findBestPlacement(event, [], { energyPreference: 'low' })
+
+    expect(high?.startMin).toBe(8 * 60)
+    expect(low?.startMin).toBe(16 * 60)
   })
 })
 

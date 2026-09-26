@@ -29,11 +29,12 @@ interface Props {
   events: PlannerEvent[]
   onSaved: (preferences: PlannerPreferences) => void
   onOpenAccount: () => void
+  onExternalEventsRemoved: (sourceId: string, externalIds?: string[]) => void
 }
 
 const dayLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
-export function SettingsView({ userId, preferences, events, onSaved, onOpenAccount }: Props) {
+export function SettingsView({ userId, preferences, events, onSaved, onOpenAccount, onExternalEventsRemoved }: Props) {
   const [draft, setDraft] = useState(preferences)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -113,7 +114,7 @@ export function SettingsView({ userId, preferences, events, onSaved, onOpenAccou
 
   const syncSource = async (source: CalendarSource) => {
     setBusy(true); setError(null)
-    try { const result = await syncCalendarSource(source.id); setSources(await listCalendarSources(userId)); setNotice(`${result.imported} événement(s) importé(s).`) }
+    try { const result = await syncCalendarSource(source.id); onExternalEventsRemoved(source.id, result.deletedExternalIds); setSources(await listCalendarSources(userId)); setNotice(`${result.imported} événement(s) importé(s).`) }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Synchronisation impossible.') }
     finally { setBusy(false) }
   }
@@ -167,7 +168,7 @@ export function SettingsView({ userId, preferences, events, onSaved, onOpenAccou
 
         <article className="settings-card">
           <div className="settings-card-head"><Download size={18}/><div><h2>Données et portabilité</h2><p>Vous pouvez récupérer vos données à tout moment, sans passer par l’administration.</p></div></div>
-          <div className="settings-action-row"><button className="btn secondary" disabled={busy} onClick={() => void exportJson()}><Download size={15}/> Exporter JSON</button><button className="btn secondary" onClick={() => downloadPlannerIcs(events)}><Calendar size={15}/> Exporter calendrier ICS</button></div>
+          <div className="settings-action-row"><button className="btn secondary" disabled={busy} onClick={() => void exportJson()}><Download size={15}/> Exporter JSON</button><button className="btn secondary" onClick={() => downloadPlannerIcs(events, preferences.timezone)}><Calendar size={15}/> Exporter calendrier ICS</button></div>
           <label className="file-drop"><Upload size={18}/><span>Importer une sauvegarde JSON</span><input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importJson(file); e.currentTarget.value = '' }}/></label>
         </article>
       </section>
@@ -176,7 +177,7 @@ export function SettingsView({ userId, preferences, events, onSaved, onOpenAccou
       <section className="settings-card settings-sources">
         <div className="settings-card-head"><Calendar size={18}/><div><h2>Agendas externes</h2><p>Import en lecture seule depuis un flux ICS Google Calendar, Outlook ou une autre source compatible.</p></div></div>
         <div className="settings-source-form"><input placeholder="Nom de l’agenda" value={sourceName} onChange={(e) => setSourceName(e.target.value)}/><select value={sourceProvider} onChange={(e) => setSourceProvider(e.target.value as CalendarSource['provider'])}><option value="ics">ICS</option><option value="google">Google Calendar</option><option value="outlook">Outlook</option></select><input type="url" placeholder="https://…/calendar.ics" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)}/><button className="btn secondary" disabled={busy || !sourceName.trim() || !sourceUrl.trim()} onClick={() => void addSource()}>Ajouter</button></div>
-        <div className="settings-source-list">{sources.map((source) => <article key={source.id}><div><strong>{source.name}</strong><span>{source.provider.toUpperCase()} · {source.lastSyncedAt ? `Dernière synchro ${new Date(source.lastSyncedAt).toLocaleString('fr-FR')}` : 'Jamais synchronisé'}</span>{source.lastError && <small>{source.lastError}</small>}</div><div><button className="btn secondary" disabled={busy} onClick={() => void syncSource(source)}>Synchroniser</button><button className="icon-button" aria-label={`Supprimer ${source.name}`} disabled={busy} onClick={() => { void deleteCalendarSource(source.id).then(async () => setSources(await listCalendarSources(userId))).catch((cause) => setError(cause instanceof Error ? cause.message : 'Suppression impossible.')) }}>×</button></div></article>)}</div>
+        <div className="settings-source-list">{sources.map((source) => <article key={source.id}><div><strong>{source.name}</strong><span>{source.provider.toUpperCase()} · {source.lastSyncedAt ? `Dernière synchro ${new Date(source.lastSyncedAt).toLocaleString('fr-FR')}` : 'Jamais synchronisé'}</span>{source.lastError && <small>{source.lastError}</small>}</div><div><button className="btn secondary" disabled={busy} onClick={() => void syncSource(source)}>Synchroniser</button><button className="icon-button" aria-label={`Supprimer ${source.name}`} disabled={busy} onClick={() => { void deleteCalendarSource(source.id).then(async () => { onExternalEventsRemoved(source.id); setSources(await listCalendarSources(userId)) }).catch((cause) => setError(cause instanceof Error ? cause.message : 'Suppression impossible.')) }}>×</button></div></article>)}</div>
       </section>
       {notice && <p className="settings-notice" role="status">{notice}</p>}
       {error && <p className="planning-error" role="alert">{error}</p>}

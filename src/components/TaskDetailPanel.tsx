@@ -36,6 +36,7 @@ interface Props {
   onDeleteTask: (id: string) => void
   onToggleSegment: (id: string) => void
   onToggleTask: (id: string) => void
+  readOnly?: boolean
 }
 
 export function TaskDetailPanel({
@@ -48,6 +49,7 @@ export function TaskDetailPanel({
   onDeleteTask,
   onToggleSegment,
   onToggleTask,
+  readOnly = false,
 }: Props) {
   const [title, setTitle] =
     useState(event.title)
@@ -306,7 +308,7 @@ export function TaskDetailPanel({
   }
 
   return (
-    <aside className="task-detail-panel">
+    <aside className={`task-detail-panel${readOnly ? ' read-only' : ''}`}>
       <div className="task-detail-head">
         <div>
           <span>
@@ -332,6 +334,12 @@ export function TaskDetailPanel({
         </button>
       </div>
 
+      {readOnly && (
+        <p className="task-detail-readonly" role="status">
+          Événement externe en lecture seule. Modifiez-le dans son agenda d’origine, puis synchronisez la source.
+        </p>
+      )}
+
       {multiSegment && (
         <section className="task-progress-card">
           <div className="task-progress-head">
@@ -353,7 +361,7 @@ export function TaskDetailPanel({
             {' '}blocs terminés · {progress.completedDuration}/
             {progress.totalDuration} min
           </p>
-          <button
+          {!readOnly && <button
             type="button"
             className="task-progress-action"
             onClick={() => onToggleTask(event.id)}
@@ -362,7 +370,7 @@ export function TaskDetailPanel({
             {progress.completed
               ? 'Rouvrir toute la tâche'
               : 'Terminer toute la tâche'}
-          </button>
+          </button>}
         </section>
       )}
 
@@ -699,7 +707,7 @@ export function TaskDetailPanel({
         </label>
       </div>
 
-      <div className="task-detail-actions">
+      {!readOnly && <div className="task-detail-actions">
         <div className="task-delete-group">
           <button
             className="task-delete"
@@ -728,7 +736,7 @@ export function TaskDetailPanel({
         >
           Enregistrer
         </button>
-      </div>
+      </div>}
     </aside>
   )
 }

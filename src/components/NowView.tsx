@@ -12,22 +12,25 @@ import {
   startFocusSession,
   type FocusSession,
 } from '../domain/focusSession'
-import {
-  formatLongDate,
-  toISODate,
-} from '../utils/date'
 import { formatTime } from '../utils/time'
+import {
+  zonedDateMinutes,
+  zonedDateToIso,
+} from '../utils/timezone'
+import { isReadOnlyCalendarEvent } from '../domain/taskIdentity'
 
 interface Props {
   events: PlannerEvent[]
   onCompleteSegment: (id: string) => void
   onCompleteTask: (id: string) => void
+  timeZone: string
 }
 
 export function NowView({
   events,
   onCompleteSegment,
   onCompleteTask,
+  timeZone,
 }: Props) {
   const [now, setNow] = useState(() => new Date())
   const [session, setSession] =
@@ -41,9 +44,8 @@ export function NowView({
     return () => window.clearInterval(timer)
   }, [])
 
-  const today = toISODate(now)
-  const currentMin =
-    now.getHours() * 60 + now.getMinutes()
+  const today = zonedDateToIso(now, timeZone)
+  const currentMin = zonedDateMinutes(now, timeZone)
 
   const todayEvents = useMemo(
     () =>
@@ -92,13 +94,11 @@ export function NowView({
     if (
       !session &&
       scheduledCurrent &&
-      !scheduledCurrent.virtual
+      !scheduledCurrent.virtual &&
+      !isReadOnlyCalendarEvent(scheduledCurrent)
     ) {
       const nowSeconds =
-        now.getHours() *
-          3600 +
-        now.getMinutes() *
-          60 +
+        currentMin * 60 +
         now.getSeconds()
       const endSeconds =
         (
@@ -120,6 +120,7 @@ export function NowView({
     sessionEvent,
     scheduledCurrent,
     now,
+    currentMin,
   ])
 
   const current =
@@ -216,10 +217,17 @@ export function NowView({
         {new Intl.DateTimeFormat('fr-FR', {
           hour: '2-digit',
           minute: '2-digit',
+          timeZone,
         }).format(now)}
       </div>
       <div className="now-date">
-        {formatLongDate(now)}
+        {new Intl.DateTimeFormat('fr-FR', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          timeZone,
+        }).format(now)}
       </div>
 
       {next ? (
@@ -315,7 +323,8 @@ export function NowView({
               </button>
             )}
 
-            {!next.virtual && (
+            {!next.virtual &&
+              !isReadOnlyCalendarEvent(next) && (
               <button
                 onClick={() =>
                   onCompleteSegment(
@@ -330,6 +339,7 @@ export function NowView({
             )}
 
             {!next.virtual &&
+              !isReadOnlyCalendarEvent(next) &&
               multiSegment && (
               <button
                 className="complete-task"

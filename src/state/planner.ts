@@ -44,6 +44,7 @@ type Snapshot = PlannerEvent[]
 import { migrateLegacyEventDates } from '../utils/date'
 import {
   isCalendarEntity,
+  isReadOnlyCalendarEvent,
   logicalTaskId,
 } from '../domain/taskIdentity'
 import {
@@ -601,6 +602,8 @@ export function usePlanner() {
               activeDays: cloudPreferences.activeDays,
               bufferMin: cloudPreferences.bufferMin,
               planningStepMin: cloudPreferences.planningStepMin,
+              focusBlockMin: cloudPreferences.focusBlockMin,
+              energyPreference: cloudPreferences.energyPreference,
             } satisfies SchedulingOptions,
           )
         : null,
@@ -612,6 +615,8 @@ export function usePlanner() {
       cloudPreferences.activeDays,
       cloudPreferences.bufferMin,
       cloudPreferences.planningStepMin,
+      cloudPreferences.focusBlockMin,
+      cloudPreferences.energyPreference,
     ],
   )
 
@@ -636,7 +641,7 @@ export function usePlanner() {
     patch: Partial<PlannerEvent>,
   ) => {
     const current = events.find((event) => event.id === id)
-    if (!current || current.locked) return
+    if (!current || current.locked || isReadOnlyCalendarEvent(current)) return
 
     const next = events.map((event) =>
       event.id === id ? { ...event, ...patch } : event
@@ -657,7 +662,7 @@ export function usePlanner() {
     patch: Partial<PlannerEvent>,
   ) => {
     const current = events.find((event) => event.id === id)
-    if (!current) return
+    if (!current || isReadOnlyCalendarEvent(current)) return
 
     const metadata = taskMetadataPatch(patch)
     const currentTaskId =
@@ -741,6 +746,9 @@ export function usePlanner() {
   }
 
   const toggleCompleted = (id: string) => {
+    const target = events.find((event) => event.id === id)
+    if (target && isReadOnlyCalendarEvent(target)) return
+
     const next =
       toggleEventCompleted(
         events,
@@ -753,6 +761,9 @@ export function usePlanner() {
   }
 
   const toggleTaskCompleted = (id: string) => {
+    const target = events.find((event) => event.id === id)
+    if (target && isReadOnlyCalendarEvent(target)) return
+
     const next =
       toggleLogicalTaskCompleted(
         events,
@@ -765,6 +776,9 @@ export function usePlanner() {
   }
 
   const deleteEvent = (id: string) => {
+    const target = events.find((event) => event.id === id)
+    if (target && isReadOnlyCalendarEvent(target)) return
+
     const next =
       deletePlannerEvent(
         events,
@@ -787,6 +801,9 @@ export function usePlanner() {
   }
 
   const deleteTask = (id: string) => {
+    const target = events.find((event) => event.id === id)
+    if (target && isReadOnlyCalendarEvent(target)) return
+
     const result =
       deleteLogicalTask(
         events,
@@ -817,6 +834,34 @@ export function usePlanner() {
         ? null
         : current,
     )
+  }
+
+  const removeExternalEvents = (
+    sourceId: string,
+    externalIds?: string[],
+  ) => {
+    const externalIdSet = externalIds
+      ? new Set(externalIds)
+      : null
+    const next = events.filter((event) => {
+      if (
+        event.source === 'manual' ||
+        !event.source ||
+        !event.externalId
+      ) {
+        return true
+      }
+
+      if (externalIdSet) {
+        return !externalIdSet.has(event.externalId)
+      }
+
+      return !event.externalId.startsWith(`${sourceId}:`)
+    })
+
+    if (next.length !== events.length) {
+      commit(next)
+    }
   }
 
   const undo = () => {
@@ -885,6 +930,7 @@ export function usePlanner() {
     toggleTaskCompleted,
     deleteEvent,
     deleteTask,
+    removeExternalEvents,
     undo,
     redo,
     canUndo: undoStack.current.length > 0,

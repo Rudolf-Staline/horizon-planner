@@ -78,6 +78,8 @@ describe(
         expect(
           metrics.activeCount,
         ).toBe(1)
+        expect(metrics.plannedMinutes).toBe(150)
+        expect(metrics.completedMinutes).toBe(90)
       },
     )
 

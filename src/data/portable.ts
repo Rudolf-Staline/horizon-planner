@@ -128,18 +128,17 @@ function escapeIcs(value: string) {
   return value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
 }
 
-function icsDate(event: PlannerEvent) {
+function icsDate(event: PlannerEvent, timeZone: string) {
   const date = event.date ?? new Date().toISOString().slice(0, 10)
-  const [year, month, day] = date.split('-').map(Number)
-  const local = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
-  local.setUTCMinutes(event.startMin)
-  return local.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+  return localDateTimeToIso(date, event.startMin, timeZone)
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '')
 }
 
-export function plannerEventsToIcs(events: PlannerEvent[]) {
+export function plannerEventsToIcs(events: PlannerEvent[], timeZone = 'UTC') {
   const body = events.filter((event) => !event.virtual && event.date).map((event) => {
-    const start = icsDate(event)
-    const end = icsDate({ ...event, startMin: event.startMin + event.durationMin })
+    const start = icsDate(event, timeZone)
+    const end = icsDate({ ...event, startMin: event.startMin + event.durationMin }, timeZone)
     return [
       'BEGIN:VEVENT',
       `UID:${escapeIcs(event.id)}@horizon`,
@@ -154,10 +153,10 @@ export function plannerEventsToIcs(events: PlannerEvent[]) {
   return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Horizon Planner//FR', ...body, 'END:VCALENDAR', ''].join('\r\n')
 }
 
-export function downloadPlannerIcs(events: PlannerEvent[]) {
+export function downloadPlannerIcs(events: PlannerEvent[], timeZone = 'UTC') {
   downloadFile(
     `horizon-calendar-${new Date().toISOString().slice(0, 10)}.ics`,
-    plannerEventsToIcs(events),
+    plannerEventsToIcs(events, timeZone),
     'text/calendar;charset=utf-8',
   )
 }

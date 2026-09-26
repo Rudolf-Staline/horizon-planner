@@ -28,6 +28,11 @@ import {
   weekDates,
 } from './utils/date'
 import {
+  localDateTimeToIso,
+  zonedDateToIso,
+} from './utils/timezone'
+import { isReadOnlyCalendarEvent } from './domain/taskIdentity'
+import {
   expandRoutines,
   listRoutineExceptions,
   listRoutines,
@@ -72,6 +77,21 @@ export default function App() {
     planner.cloudUserEmail
 
   useEffect(() => {
+    if (planner.authStatus === 'authenticated') {
+      setAnchorDate(
+        zonedDateToIso(
+          new Date(),
+          planner.cloudPreferences.timezone,
+        ),
+      )
+    }
+  }, [
+    planner.authStatus,
+    planner.cloudUserId,
+    planner.cloudPreferences.timezone,
+  ])
+
+  useEffect(() => {
     if (!planner.cloudUserId) {
       setRoutines([])
       setRoutineExceptions([])
@@ -105,9 +125,13 @@ export default function App() {
       const lead = planner.cloudPreferences.reminderLeadMin * 60_000
       for (const event of planner.events) {
         if (event.virtual || !event.date) continue
-        const starts = new Date(`${event.date}T00:00:00`)
-        starts.setMinutes(event.startMin)
-        const startMs = starts.getTime()
+        const startMs = new Date(
+          localDateTimeToIso(
+            event.date,
+            event.startMin,
+            planner.cloudPreferences.timezone,
+          ),
+        ).getTime()
         if (startMs < now || startMs - now > lead + 30_000) continue
         const key = `horizon-reminder:${planner.cloudUserId}:${event.id}:${event.date}:${event.startMin}`
         if (sessionStorage.getItem(key)) continue
@@ -189,13 +213,19 @@ export default function App() {
     let rangeEnd = anchor
 
     if (view === 'week') {
-      rangeStart = startOfWeek(anchor)
+      rangeStart = startOfWeek(
+        anchor,
+        planner.cloudPreferences.weekStartsOn,
+      )
       rangeEnd = new Date(rangeStart)
       rangeEnd.setDate(
         rangeEnd.getDate() + 6,
       )
     } else if (view === 'month') {
-      const dates = monthGridDates(anchor)
+      const dates = monthGridDates(
+        anchor,
+        planner.cloudPreferences.weekStartsOn,
+      )
       rangeStart = dates[0]
       rangeEnd =
         dates[dates.length - 1]
@@ -213,8 +243,13 @@ export default function App() {
         12,
       )
     } else if (view === 'now') {
-      rangeStart = new Date()
-      rangeEnd = new Date()
+      rangeStart = fromISODate(
+        zonedDateToIso(
+          new Date(),
+          planner.cloudPreferences.timezone,
+        ),
+      )
+      rangeEnd = rangeStart
     }
 
     return expandRoutines(
@@ -223,7 +258,14 @@ export default function App() {
       toISODate(rangeEnd),
       routineExceptions,
     )
-  }, [routines, routineExceptions, anchorDate, view])
+  }, [
+    routines,
+    routineExceptions,
+    anchorDate,
+    view,
+    planner.cloudPreferences.timezone,
+    planner.cloudPreferences.weekStartsOn,
+  ])
 
   const calendarEvents = useMemo(
     () => [
@@ -235,8 +277,15 @@ export default function App() {
 
   const analyticsRoutineEvents =
     useMemo(() => {
-      const dates =
-        weekDates(new Date())
+      const dates = weekDates(
+        fromISODate(
+          zonedDateToIso(
+            new Date(),
+            planner.cloudPreferences.timezone,
+          ),
+        ),
+        planner.cloudPreferences.weekStartsOn,
+      )
 
       return expandRoutines(
         routines,
@@ -251,6 +300,8 @@ export default function App() {
     }, [
       routines,
       routineExceptions,
+      planner.cloudPreferences.timezone,
+      planner.cloudPreferences.weekStartsOn,
     ])
 
   const analyticsEvents =
@@ -368,9 +419,19 @@ export default function App() {
               onAnchorDate={
                 setAnchorDate
               }
-              onSelect={
-                planner.setSelectedId
-              }
+              onSelect={(id) => {
+                if (
+                  routineEvents.some(
+                    (event) => event.id === id,
+                  )
+                ) {
+                  planner.setSelectedId(null)
+                  setSection('routines')
+                  return
+                }
+
+                planner.setSelectedId(id)
+              }}
               onChange={
                 planner.updateEvent
               }
@@ -412,6 +473,8 @@ export default function App() {
             <TasksView
               userId={planner.cloudUserId}
               events={planner.events}
+              defaultDurationMin={planner.cloudPreferences.defaultDurationMin}
+              todayDate={zonedDateToIso(new Date(), planner.cloudPreferences.timezone)}
               onToggleTask={planner.toggleTaskCompleted}
               onSelect={planner.setSelectedId}
               onCreateScheduled={(event) => {
@@ -447,6 +510,7 @@ export default function App() {
         {section === 'focus' && (
           <NowView
             events={calendarEvents}
+            timeZone={planner.cloudPreferences.timezone}
             onCompleteSegment={
               planner.toggleCompleted
             }
@@ -460,6 +524,7 @@ export default function App() {
           <AnalyticsView
             events={analyticsEvents}
             weekStartsOn={planner.cloudPreferences.weekStartsOn}
+            anchorDate={zonedDateToIso(new Date(), planner.cloudPreferences.timezone)}
           />
         )}
 
@@ -470,6 +535,7 @@ export default function App() {
             events={planner.events}
             onSaved={planner.setCloudPreferences}
             onOpenAccount={() => setAccountOpen(true)}
+            onExternalEventsRemoved={planner.removeExternalEvents}
           />
         )}
 
@@ -513,7 +579,10 @@ export default function App() {
             activeDays: planner.cloudPreferences.activeDays,
             bufferMin: planner.cloudPreferences.bufferMin,
             planningStepMin: planner.cloudPreferences.planningStepMin,
+            focusBlockMin: planner.cloudPreferences.focusBlockMin,
+            energyPreference: planner.cloudPreferences.energyPreference,
           }}
+          timeZone={planner.cloudPreferences.timezone}
           defaultDurationMin={planner.cloudPreferences.defaultDurationMin}
           onClose={() =>
             setCommandOpen(false)
@@ -536,6 +605,7 @@ export default function App() {
           onDeleteTask={planner.deleteTask}
           onToggleSegment={planner.toggleCompleted}
           onToggleTask={planner.toggleTaskCompleted}
+          readOnly={isReadOnlyCalendarEvent(planner.selected)}
         />
       )}
 
