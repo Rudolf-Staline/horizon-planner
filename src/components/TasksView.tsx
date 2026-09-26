@@ -15,6 +15,7 @@ import {
   useState,
 } from 'react'
 import { CATEGORY_LABEL } from '../domain/constants'
+import { groupTaskEvents, taskProgress } from '../domain/taskIdentity'
 import type {
   Category,
   PlannerEvent,
@@ -48,7 +49,7 @@ type FilterMode =
 interface Props {
   userId: string
   events: PlannerEvent[]
-  onToggle: (id: string) => void
+  onToggleTask: (id: string) => void
   onSelect: (id: string) => void
   onCreateScheduled: (
     event: PlannerEvent,
@@ -64,7 +65,7 @@ const tomorrowDate = () => {
 export function TasksView({
   userId,
   events,
-  onToggle,
+  onToggleTask,
   onSelect,
   onCreateScheduled,
 }: Props) {
@@ -137,40 +138,53 @@ export function TasksView({
     const normalized =
       query.trim().toLowerCase()
 
-    return [...events]
-      .filter(
-        (event) => !event.virtual,
-      )
-      .filter((event) => {
+    return [...groupTaskEvents(events).entries()]
+      .map(([taskId, segments]) => {
+        const primary = segments[0]
+        const progress = taskProgress(segments)
+        const nextSegment =
+          segments.find(
+            (segment) => !segment.completed,
+          ) ?? primary
+
+        return {
+          taskId,
+          primary,
+          nextSegment,
+          progress,
+        }
+      })
+      .filter(({ primary, progress }) => {
         if (
           filter === 'open' &&
-          event.completed
+          progress.completed
         ) {
           return false
         }
 
         if (
           filter === 'completed' &&
-          !event.completed
+          !progress.completed
         ) {
           return false
         }
 
         return (
           !normalized ||
-          event.title
+          primary.title
             .toLowerCase()
             .includes(normalized)
         )
       })
       .sort(
         (a, b) =>
-          (a.date ?? '').localeCompare(
-            b.date ?? '',
+          (a.nextSegment.date ?? '').localeCompare(
+            b.nextSegment.date ?? '',
           ) ||
-          a.startMin - b.startMin ||
-          a.title.localeCompare(
-            b.title,
+          a.nextSegment.startMin -
+            b.nextSegment.startMin ||
+          a.primary.title.localeCompare(
+            b.primary.title,
           ),
       )
   }, [events, filter, query])
@@ -193,11 +207,11 @@ export function TasksView({
   }, [inbox, filter, query])
 
   const openCount =
-    events.filter(
-      (event) =>
-        !event.virtual &&
-        !event.completed,
-    ).length + inbox.length
+    [...groupTaskEvents(events).values()]
+      .filter(
+        (segments) =>
+          !taskProgress(segments).completed,
+      ).length + inbox.length
 
   const create = async () => {
     if (!title.trim() || busy) return
@@ -754,16 +768,25 @@ export function TasksView({
             </div>
           ) : (
             scheduled.map(
-              (event) => (
+              ({
+                taskId,
+                primary,
+                nextSegment,
+                progress,
+              }) => (
                 <article
-                  key={event.id}
+                  key={taskId}
                   className={
-                    `task-row ${event.completed ? 'completed' : ''}`
+                    'task-row ' +
+                    (progress.completed
+                      ? 'completed'
+                      : '')
                   }
                   onClick={() =>
                     onSelect(
-                      event.id,
-                    )}
+                      nextSegment.id,
+                    )
+                  }
                 >
                   <button
                     className="task-check"
@@ -771,60 +794,104 @@ export function TasksView({
                       clickEvent,
                     ) => {
                       clickEvent.stopPropagation()
-                      onToggle(
-                        event.id,
+                      onToggleTask(
+                        nextSegment.id,
                       )
                     }}
                     aria-label={
-                      event.completed
-                        ? 'Marquer comme non terminée'
-                        : 'Marquer comme terminée'
+                      progress.completed
+                        ? 'Rouvrir la tâche'
+                        : 'Terminer toute la tâche'
                     }
                   >
-                    {event.completed
+                    {progress.completed
                       ? <Check size={15}/>
                       : <Circle size={15}/>}
                   </button>
 
                   <div className="task-main">
                     <strong>
-                      {event.title}
+                      {primary.title}
                     </strong>
-                    <span>
-                      {eventDateLabel(
-                        event,
-                      )}{' '}
-                      ·{' '}
-                      {formatTime(
-                        event.startMin,
-                      )}{' '}
-                      ·{' '}
-                      {
-                        event.durationMin
-                      }{' '}
-                      min
-                    </span>
+
+                    {progress.totalSegments > 1 ? (
+                      <>
+                        <span>
+                          {progress.totalSegments} blocs
+                          {' · '}
+                          {progress.completedSegments}/
+                          {progress.totalSegments} terminés
+                          {' · '}
+                          {progress.totalDuration} min
+                        </span>
+                        <div
+                          className="task-row-progress"
+                          aria-label={
+                            progress.percent +
+                            '% terminé'
+                          }
+                        >
+                          <i
+                            style={{
+                              width:
+                                progress.percent +
+                                '%',
+                            }}
+                          />
+                        </div>
+                        <small>
+                          Prochain :{' '}
+                          {eventDateLabel(
+                            nextSegment,
+                          )}
+                          {' · '}
+                          {formatTime(
+                            nextSegment.startMin,
+                          )}
+                        </small>
+                      </>
+                    ) : (
+                      <span>
+                        {eventDateLabel(
+                          nextSegment,
+                        )}
+                        {' · '}
+                        {formatTime(
+                          nextSegment.startMin,
+                        )}
+                        {' · '}
+                        {nextSegment.durationMin}{' '}
+                        min
+                      </span>
+                    )}
                   </div>
 
                   <span
                     className={
-                      `task-category category-text-${event.category}`
+                      'task-category category-text-' +
+                      primary.category
                     }
                   >
                     {CATEGORY_LABEL[
-                      event.category
+                      primary.category
                     ]}
                   </span>
 
                   <span
                     className={
-                      `task-kind kind-${event.kind}`
+                      'task-kind kind-' +
+                      primary.kind
                     }
                   >
-                    {event.kind ===
-                    'fixed'
-                      ? 'Fixe'
-                      : 'Flexible'}
+                    {progress.totalSegments > 1
+                      ? progress.completedSegments +
+                        '/' +
+                        progress.totalSegments +
+                        ' blocs'
+                      : primary.kind ===
+                          'fixed'
+                        ? 'Fixe'
+                        : 'Flexible'}
                   </span>
                 </article>
               ),
