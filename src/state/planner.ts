@@ -12,6 +12,10 @@ import {
   type UserRole,
 } from '../data/profile'
 import { supabase } from '../lib/supabase'
+import {
+  loadNormalizedPlanner,
+  syncNormalizedPlanner,
+} from '../data/normalizedPlanner'
 import { migrateLegacyEventDates } from '../utils/date'
 
 const LEGACY_STORAGE_KEY = 'horizon-planner-v1'
@@ -81,6 +85,36 @@ function clearLocalCache(userId: string | null) {
   }
 
   localStorage.removeItem(LEGACY_STORAGE_KEY)
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function migrateLegacyEventIds(
+  events: PlannerEvent[],
+) {
+  let changed = false
+
+  const migrated = events.map(
+    (event) => {
+      if (
+        UUID_PATTERN.test(event.id)
+      ) {
+        return event
+      }
+
+      changed = true
+      return {
+        ...event,
+        id: crypto.randomUUID(),
+      }
+    },
+  )
+
+  return {
+    events: migrated,
+    changed,
+  }
 }
 
 function isRecoveryUrl() {
@@ -176,8 +210,9 @@ export function usePlanner() {
         const browserTimezone =
           Intl.DateTimeFormat().resolvedOptions().timeZone
 
-        const [remote, profile] = await Promise.all([
+        const [remote, normalized, profile] = await Promise.all([
           loadCloudSnapshot(user.id),
+          loadNormalizedPlanner(user.id).catch(() => null),
           loadOwnProfile(user.id).catch(() => null),
           browserTimezone
             ? syncProfileTimezone(user.id, browserTimezone)
@@ -201,18 +236,34 @@ export function usePlanner() {
         let nextModifiedAt = 0
         let shouldPush = false
 
-        if (remote && local) {
-          if (remote.modifiedAt >= local.modifiedAt) {
-            nextEvents = remote.events
-            nextModifiedAt = remote.modifiedAt
+        const cloudSource =
+          normalized &&
+          (!remote ||
+            normalized.modifiedAt >=
+              remote.modifiedAt)
+            ? normalized
+            : remote
+
+        if (cloudSource && local) {
+          if (
+            cloudSource.modifiedAt >=
+            local.modifiedAt
+          ) {
+            nextEvents =
+              cloudSource.events
+            nextModifiedAt =
+              cloudSource.modifiedAt
           } else {
             nextEvents = local.events
-            nextModifiedAt = local.modifiedAt
+            nextModifiedAt =
+              local.modifiedAt
             shouldPush = true
           }
-        } else if (remote) {
-          nextEvents = remote.events
-          nextModifiedAt = remote.modifiedAt
+        } else if (cloudSource) {
+          nextEvents =
+            cloudSource.events
+          nextModifiedAt =
+            cloudSource.modifiedAt
         } else if (local) {
           nextEvents = local.events
           nextModifiedAt = local.modifiedAt
@@ -223,9 +274,20 @@ export function usePlanner() {
           shouldPush = true
         }
 
-        const migration = migrateLegacyEventDates(nextEvents)
-        if (migration.changed) {
-          nextEvents = migration.events
+        const dateMigration =
+          migrateLegacyEventDates(nextEvents)
+        if (dateMigration.changed) {
+          nextEvents =
+            dateMigration.events
+          nextModifiedAt = Date.now()
+          shouldPush = true
+        }
+
+        const idMigration =
+          migrateLegacyEventIds(nextEvents)
+        if (idMigration.changed) {
+          nextEvents =
+            idMigration.events
           nextModifiedAt = Date.now()
           shouldPush = true
         }
@@ -235,10 +297,21 @@ export function usePlanner() {
         persistLocal(user.id, nextEvents, nextModifiedAt)
 
         if (shouldPush) {
-          await saveCloudSnapshot(
+          await Promise.all([
+            saveCloudSnapshot(
+              user.id,
+              nextEvents,
+              nextModifiedAt,
+            ),
+            syncNormalizedPlanner(
+              user.id,
+              nextEvents,
+            ),
+          ])
+        } else if (!normalized) {
+          await syncNormalizedPlanner(
             user.id,
             nextEvents,
-            nextModifiedAt,
           )
         }
 
@@ -298,11 +371,17 @@ export function usePlanner() {
       setCloudStatus('syncing')
 
       try {
-        await saveCloudSnapshot(
-          userId,
-          events,
-          modifiedAtRef.current,
-        )
+        await Promise.all([
+          saveCloudSnapshot(
+            userId,
+            events,
+            modifiedAtRef.current,
+          ),
+          syncNormalizedPlanner(
+            userId,
+            events,
+          ),
+        ])
         setCloudStatus('synced')
       } catch {
         setCloudStatus('error')

@@ -74,8 +74,8 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Move task/project/routine CRUD from the transitional snapshot into the normalized Supabase tables
-2. Persist recurring routine expansion and multi-week flexible planning
+1. Complete direct project/routine CRUD on the normalized tables
+2. Persist recurring routine expansion and richer multi-segment task semantics
 3. Improve mobile day-first interaction and calendar accessibility
 4. Add richer task detail/editing and normalized project membership
 5. Broaden state-history, pointer and integration tests
@@ -93,3 +93,10 @@ The production Vite bundle uses only public browser configuration:
 No service-role key is used or committed.
 
 The schema is versioned in `supabase/migrations/` and Row Level Security is enabled on every user-owned table.
+
+
+### Normalized planner persistence
+
+The planner now mirrors authenticated schedule state into the normalized Supabase domain:
+`tasks`, `task_constraints`, `planned_segments`, and `calendar_events`.
+The legacy `planner_snapshots` row remains temporarily as a rollback/migration bridge.
