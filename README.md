@@ -75,8 +75,7 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Add browser-level interaction coverage for calendar and authentication flows
-2. Retire the legacy snapshot table after a stability window
+1. Retire the legacy snapshot table after a stability window
 
 
 ## Supabase
@@ -228,3 +227,8 @@ The former `planner_snapshots` bridge has no runtime module, no admin metric and
 ### Inline calendar quick create
 
 Empty day/week slots now create in place instead of opening a modal. Hover reveals the target slot, one click inserts a focused draft at that time, Enter commits a minimal flexible task, and Escape cancels it. The created task deliberately starts neutral with a 60-minute duration and a concrete J+2 deadline; richer constraints stay in the detail panel.
+
+
+### Browser-level smoke coverage
+
+CI now launches Horizon in Chromium with Playwright. The browser suite verifies that the public entry keeps the planner locked when cloud configuration is absent and exercises the real calendar UI for inline create/commit/cancel behavior without using an authentication bypass or storing test credentials.

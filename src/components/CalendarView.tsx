@@ -214,6 +214,7 @@ export function CalendarView({
             {dates.map((date, visibleDay) => (
               <div
                 key={toISODate(date)}
+                data-calendar-date={toISODate(date)}
                 className="day-column"
                 style={{
                   left: visibleDay * columnWidth,
