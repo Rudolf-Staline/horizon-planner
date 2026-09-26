@@ -7,6 +7,7 @@ interface Props {
   onCommand: () => void
   onAccount: () => void
   cloudStatus: CloudStatus
+  userLabel: string | null
 }
 
 export function Header({
@@ -15,7 +16,11 @@ export function Header({
   onCommand,
   onAccount,
   cloudStatus,
+  userLabel,
 }: Props) {
+  const initial =
+    userLabel?.trim().charAt(0).toUpperCase() || 'U'
+
   return (
     <header className="topbar">
       <div className="top-nav">
@@ -60,13 +65,17 @@ export function Header({
       </button>
 
       <button className="icon-button"><Sun size={20}/></button>
-
       <button className="icon-button">
         <Bell size={20}/>
         <span className="notif-dot"/>
       </button>
-
-      <button className="top-avatar" onClick={onAccount}>R</button>
+      <button
+        className="top-avatar"
+        onClick={onAccount}
+        aria-label="Ouvrir mon compte"
+      >
+        {initial}
+      </button>
     </header>
   )
 }

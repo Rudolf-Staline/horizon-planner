@@ -7,6 +7,10 @@ import {
   saveCloudSnapshot,
   syncProfileTimezone,
 } from '../data/cloudSnapshot'
+import {
+  loadOwnProfile,
+  type UserRole,
+} from '../data/profile'
 import { supabase } from '../lib/supabase'
 
 const LEGACY_STORAGE_KEY = 'horizon-planner-v1'
@@ -21,7 +25,11 @@ type LocalEnvelope = {
 }
 
 export type CloudStatus = 'local' | 'syncing' | 'synced' | 'error'
-export type AuthStatus = 'loading' | 'anonymous' | 'authenticated'
+export type AuthStatus =
+  | 'loading'
+  | 'anonymous'
+  | 'authenticated'
+  | 'recovery'
 
 function storageKey(userId: string) {
   return `${STORAGE_PREFIX}:${userId}`
@@ -71,8 +79,15 @@ function clearLocalCache(userId: string | null) {
     localStorage.removeItem(storageKey(userId))
   }
 
-  // Never expose the old account-agnostic cache again.
   localStorage.removeItem(LEGACY_STORAGE_KEY)
+}
+
+function isRecoveryUrl() {
+  return (
+    window.location.hash.includes('type=recovery') ||
+    new URLSearchParams(window.location.search).get('type') ===
+      'recovery'
+  )
 }
 
 export function usePlanner() {
@@ -80,8 +95,13 @@ export function usePlanner() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [lastConflictId, setLastConflictId] = useState<string | null>(null)
   const [cloudStatus, setCloudStatus] = useState<CloudStatus>('syncing')
+  const [cloudUserId, setCloudUserId] = useState<string | null>(null)
   const [cloudUserEmail, setCloudUserEmail] = useState<string | null>(null)
-  const [authStatus, setAuthStatus] = useState<AuthStatus>('loading')
+  const [cloudDisplayName, setCloudDisplayName] = useState<string | null>(null)
+  const [cloudUserRole, setCloudUserRole] = useState<UserRole>('user')
+  const [authStatus, setAuthStatus] = useState<AuthStatus>(
+    () => isRecoveryUrl() ? 'recovery' : 'loading',
+  )
 
   const undoStack = useRef<Snapshot[]>([])
   const redoStack = useRef<Snapshot[]>([])
@@ -89,6 +109,7 @@ export function usePlanner() {
   const eventsRef = useRef<PlannerEvent[]>([])
   const cloudUserIdRef = useRef<string | null>(null)
   const skipNextCloudPushRef = useRef(false)
+  const recoveryRef = useRef(isRecoveryUrl())
 
   const resetPrivateState = (clearCache: boolean) => {
     const previousUserId = cloudUserIdRef.current
@@ -106,10 +127,13 @@ export function usePlanner() {
     redoStack.current = []
     skipNextCloudPushRef.current = false
 
+    setCloudUserId(null)
     setEvents([])
     setSelectedId(null)
     setLastConflictId(null)
     setCloudUserEmail(null)
+    setCloudDisplayName(null)
+    setCloudUserRole('user')
   }
 
   useEffect(() => {
@@ -134,19 +158,26 @@ export function usePlanner() {
         return
       }
 
+      cloudUserIdRef.current = user.id
+      setCloudUserId(user.id)
+      setCloudUserEmail(user.email ?? null)
+
+      if (recoveryRef.current) {
+        setAuthStatus('recovery')
+        return
+      }
+
       setAuthStatus('loading')
       localStorage.removeItem(LEGACY_STORAGE_KEY)
-
-      cloudUserIdRef.current = user.id
-      setCloudUserEmail(user.email ?? null)
       setCloudStatus('syncing')
 
       try {
         const browserTimezone =
           Intl.DateTimeFormat().resolvedOptions().timeZone
 
-        const [remote] = await Promise.all([
+        const [remote, profile] = await Promise.all([
           loadCloudSnapshot(user.id),
+          loadOwnProfile(user.id).catch(() => null),
           browserTimezone
             ? syncProfileTimezone(user.id, browserTimezone)
                 .catch(() => undefined)
@@ -154,6 +185,14 @@ export function usePlanner() {
         ])
 
         if (cancelled) return
+
+        setCloudDisplayName(
+          profile?.displayName ??
+            user.user_metadata?.display_name ??
+            user.email?.split('@')[0] ??
+            null,
+        )
+        setCloudUserRole(profile?.role ?? 'user')
 
         const local = loadLocalSnapshot(user.id)
 
@@ -204,8 +243,6 @@ export function usePlanner() {
       } catch {
         if (cancelled) return
 
-        // Do not reveal stale local planning data if cloud identity
-        // reconciliation failed.
         resetPrivateState(false)
         setCloudStatus('error')
         setAuthStatus('anonymous')
@@ -216,7 +253,13 @@ export function usePlanner() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        recoveryRef.current = true
+        setAuthStatus('recovery')
+        return
+      }
+
       queueMicrotask(() => {
         reconcile(session?.user ?? null)
       })
@@ -262,12 +305,12 @@ export function usePlanner() {
   }, [events, authStatus])
 
   const selected = useMemo(
-    () => events.find((e) => e.id === selectedId) ?? null,
+    () => events.find((event) => event.id === selectedId) ?? null,
     [events, selectedId],
   )
 
   const conflictEvent = useMemo(
-    () => events.find((e) => e.id === lastConflictId) ?? null,
+    () => events.find((event) => event.id === lastConflictId) ?? null,
     [events, lastConflictId],
   )
 
@@ -277,9 +320,10 @@ export function usePlanner() {
   )
 
   const suggestion = useMemo(
-    () => conflictEvent
-      ? findNextAvailableSlot(conflictEvent, events)
-      : null,
+    () =>
+      conflictEvent
+        ? findNextAvailableSlot(conflictEvent, events)
+        : null,
     [conflictEvent, events],
   )
 
@@ -352,12 +396,8 @@ export function usePlanner() {
     if (target?.locked) return
 
     commit(events.filter((event) => event.id !== id))
-    setSelectedId((current) => (
-      current === id ? null : current
-    ))
-    setLastConflictId((current) => (
-      current === id ? null : current
-    ))
+    setSelectedId((current) => current === id ? null : current)
+    setLastConflictId((current) => current === id ? null : current)
   }
 
   const undo = () => {
@@ -411,7 +451,11 @@ export function usePlanner() {
     dismissConflict: () => setLastConflictId(null),
     acceptSuggestion,
     cloudStatus,
+    cloudUserId,
     cloudUserEmail,
+    cloudDisplayName,
+    setCloudDisplayName,
+    cloudUserRole,
     authStatus,
   }
 }

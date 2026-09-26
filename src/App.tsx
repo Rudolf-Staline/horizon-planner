@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { AccountDialog } from './components/AccountDialog'
+import { AdminView } from './components/AdminView'
+import { AnalyticsView } from './components/AnalyticsView'
 import { AuthGate } from './components/AuthGate'
+import { CollectionView } from './components/CollectionView'
 import { CommandPalette } from './components/CommandPalette'
 import { ConflictBar } from './components/ConflictBar'
 import { Header } from './components/Header'
-import { AnalyticsView } from './components/AnalyticsView'
-import { CollectionView } from './components/CollectionView'
 import { NowView } from './components/NowView'
 import { QuickCreate } from './components/QuickCreate'
 import { Sidebar, type Section } from './components/Sidebar'
@@ -18,9 +19,23 @@ export default function App() {
   const planner = usePlanner()
   const [view, setView] = useState<'week' | 'now'>('week')
   const [section, setSection] = useState<Section>('calendar')
-  const [quick, setQuick] = useState<{ day: number; startMin: number } | null>(null)
+  const [quick, setQuick] = useState<{
+    day: number
+    startMin: number
+  } | null>(null)
   const [commandOpen, setCommandOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+
+  const isAdmin = planner.cloudUserRole === 'admin'
+  const userLabel =
+    planner.cloudDisplayName ||
+    planner.cloudUserEmail
+
+  useEffect(() => {
+    if (!isAdmin && section === 'admin') {
+      setSection('calendar')
+    }
+  }, [isAdmin, section])
 
   useEffect(() => {
     if (planner.authStatus !== 'authenticated') return
@@ -35,10 +50,12 @@ export default function App() {
       }
 
       if (event.key.toLowerCase() !== 'z') return
+
       event.preventDefault()
       if (event.shiftKey) planner.redo()
       else planner.undo()
     }
+
     window.addEventListener('keydown', handle)
     return () => window.removeEventListener('keydown', handle)
   }, [planner.authStatus, planner.undo, planner.redo])
@@ -66,12 +83,18 @@ export default function App() {
         onCommand={() => setCommandOpen(true)}
         onAccount={() => setAccountOpen(true)}
         cloudStatus={planner.cloudStatus}
+        userLabel={userLabel}
       />
+
       <div className="app-body">
         <Sidebar
           active={section}
+          isAdmin={isAdmin}
+          displayName={planner.cloudDisplayName}
+          email={planner.cloudUserEmail}
           onNavigate={(nextSection) => {
             setSection(nextSection)
+
             if (nextSection === 'focus') setView('now')
             if (nextSection === 'calendar') setView('week')
           }}
@@ -83,7 +106,9 @@ export default function App() {
             selectedId={planner.selectedId}
             onSelect={planner.setSelectedId}
             onChange={planner.updateEvent}
-            onEmptyClick={(day, startMin) => setQuick({ day, startMin })}
+            onEmptyClick={(day, startMin) =>
+              setQuick({ day, startMin })
+            }
           />
         )}
 
@@ -119,12 +144,20 @@ export default function App() {
         {section === 'analytics' && (
           <AnalyticsView events={planner.events}/>
         )}
+
+        {section === 'admin' && isAdmin && (
+          <AdminView/>
+        )}
       </div>
 
       {accountOpen && (
         <AccountDialog
           cloudStatus={planner.cloudStatus}
+          userId={planner.cloudUserId}
           userEmail={planner.cloudUserEmail}
+          displayName={planner.cloudDisplayName}
+          role={planner.cloudUserRole}
+          onDisplayNameChange={planner.setCloudDisplayName}
           onClose={() => setAccountOpen(false)}
         />
       )}
@@ -150,16 +183,17 @@ export default function App() {
         />
       )}
 
-      {planner.conflictEvent && planner.conflicts.length > 0 && (
-        <ConflictBar
-          event={planner.conflictEvent}
-          conflicts={planner.conflicts}
-          suggestion={planner.suggestion}
-          onAccept={planner.acceptSuggestion}
-          onDismiss={planner.dismissConflict}
-          onUndo={planner.undo}
-        />
-      )}
+      {planner.conflictEvent &&
+        planner.conflicts.length > 0 && (
+          <ConflictBar
+            event={planner.conflictEvent}
+            conflicts={planner.conflicts}
+            suggestion={planner.suggestion}
+            onAccept={planner.acceptSuggestion}
+            onDismiss={planner.dismissConflict}
+            onUndo={planner.undo}
+          />
+        )}
     </div>
   )
 }
