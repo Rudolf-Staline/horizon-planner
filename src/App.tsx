@@ -301,12 +301,21 @@ export default function App() {
           )}
 
         {section === 'tasks' && (
-          <TasksView
-            events={planner.events}
-            onToggle={planner.toggleCompleted}
-            onSelect={planner.setSelectedId}
-            onCreate={() => setCommandOpen(true)}
-          />
+          planner.cloudUserId && (
+            <TasksView
+              userId={planner.cloudUserId}
+              events={planner.events}
+              onToggle={planner.toggleCompleted}
+              onSelect={planner.setSelectedId}
+              onCreateScheduled={(event) => {
+                planner.createEvent(event)
+                planner.setSelectedId(event.id)
+                if (event.date) {
+                  setAnchorDate(event.date)
+                }
+              }}
+            />
+          )
         )}
 
         {section === 'projects' &&

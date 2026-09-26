@@ -74,7 +74,7 @@ See `docs/PLANNING_ENGINE.md` for the v1 engine contract.
 
 ## Remaining product work
 
-1. Persist richer multi-segment task semantics and unscheduled task inbox
+1. Persist richer multi-segment task semantics
 2. Add direct routine editing and exception dates
 3. Improve mobile day-first interaction and calendar accessibility
 4. Add richer task detail/editing and normalized project membership
@@ -105,3 +105,8 @@ The legacy `planner_snapshots` row remains temporarily as a rollback/migration b
 ### Projects and routines
 
 Projects and routines are now first-class Supabase entities. Tasks can be assigned to a project, and active routines are expanded into virtual calendar occurrences for the visible date range without duplicating recurring rows.
+
+
+### Task inbox
+
+Tasks can now exist without an immediate calendar placement. The Tasks screen has a real inbox backed by `tasks.status = 'open'`; a task can later be scheduled into the calendar while preserving project, priority, duration, and deadline metadata.

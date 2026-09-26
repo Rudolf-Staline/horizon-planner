@@ -213,6 +213,9 @@ export async function loadNormalizedPlanner(
           task.status === 'completed' ||
           segment.status === 'completed',
         deadlineDay,
+        deadlineDate:
+          constraint?.deadline_date ??
+          undefined,
         windowStartMin:
           parseTimeValue(
             constraint?.window_start ??
@@ -304,19 +307,23 @@ export async function syncNormalizedPlanner(
         ),
     )
 
+  const taskIds =
+    taskEvents.map((event) => event.id)
+
   const [
-    clearConstraints,
+    existingTasks,
     clearSegments,
     clearCalendar,
   ] = await Promise.all([
     supabase
-      .from('task_constraints')
-      .delete()
+      .from('tasks')
+      .select('id,status')
       .eq('user_id', userId),
     supabase
       .from('planned_segments')
       .delete()
-      .eq('user_id', userId),
+      .eq('user_id', userId)
+      .not('task_id', 'is', null),
     supabase
       .from('calendar_events')
       .delete()
@@ -325,29 +332,42 @@ export async function syncNormalizedPlanner(
   ])
 
   for (const result of [
-    clearConstraints,
+    existingTasks,
     clearSegments,
     clearCalendar,
   ]) {
     if (result.error) throw result.error
   }
 
-  const taskIds =
-    taskEvents.map((event) => event.id)
-
+  // Constraints belonging to inbox/open tasks must survive planner sync.
   if (taskIds.length > 0) {
     const { error } = await supabase
-      .from('tasks')
+      .from('task_constraints')
       .delete()
       .eq('user_id', userId)
-      .not('id', 'in', `(${taskIds.join(',')})`)
+      .in('task_id', taskIds)
 
     if (error) throw error
-  } else {
+  }
+
+  // Only remove stale tasks that were already scheduled. Open/inbox
+  // tasks are deliberately preserved even though they have no segment.
+  const currentTaskIds = new Set(taskIds)
+  const staleScheduledIds =
+    (existingTasks.data ?? [])
+      .filter(
+        (task) =>
+          task.status !== 'open' &&
+          !currentTaskIds.has(task.id),
+      )
+      .map((task) => task.id)
+
+  if (staleScheduledIds.length > 0) {
     const { error } = await supabase
       .from('tasks')
       .delete()
       .eq('user_id', userId)
+      .in('id', staleScheduledIds)
 
     if (error) throw error
   }
@@ -441,14 +461,17 @@ export async function syncNormalizedPlanner(
               earliest_date:
                 event.date ?? null,
               deadline_date:
-                event.date &&
-                event.deadlineDay !==
-                  undefined
-                  ? dateForWeekday(
-                      event.date,
-                      event.deadlineDay,
-                    )
-                  : null,
+                event.deadlineDate ??
+                (
+                  event.date &&
+                  event.deadlineDay !==
+                    undefined
+                    ? dateForWeekday(
+                        event.date,
+                        event.deadlineDay,
+                      )
+                    : null
+                ),
               window_start:
                 timeValue(
                   event.windowStartMin,

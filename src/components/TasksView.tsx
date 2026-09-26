@@ -1,78 +1,570 @@
-import { useMemo, useState } from 'react'
-import { Check, Circle, Filter, Search } from 'lucide-react'
+import {
+  CalendarPlus,
+  Check,
+  Circle,
+  Filter,
+  Inbox,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { CATEGORY_LABEL } from '../domain/constants'
-import type { PlannerEvent } from '../domain/types'
-import { eventDateLabel } from '../utils/date'
+import type {
+  Category,
+  PlannerEvent,
+  Priority,
+} from '../domain/types'
+import {
+  completeInboxTask,
+  createInboxTask,
+  deleteInboxTask,
+  listInboxTasks,
+  markInboxTaskPlanned,
+  type InboxTask,
+} from '../data/taskInbox'
+import {
+  listProjects,
+  type Project,
+} from '../data/projects'
+import {
+  eventDateLabel,
+  fromISODate,
+  toISODate,
+  weekdayIndex,
+} from '../utils/date'
 import { formatTime } from '../utils/time'
 
-type FilterMode = 'open' | 'all' | 'completed'
+type FilterMode =
+  | 'open'
+  | 'all'
+  | 'completed'
 
 interface Props {
+  userId: string
   events: PlannerEvent[]
   onToggle: (id: string) => void
   onSelect: (id: string) => void
-  onCreate: () => void
+  onCreateScheduled: (
+    event: PlannerEvent,
+  ) => void
+}
+
+const tomorrowDate = () => {
+  const next = new Date()
+  next.setDate(next.getDate() + 1)
+  return toISODate(next)
 }
 
 export function TasksView({
+  userId,
   events,
   onToggle,
   onSelect,
-  onCreate,
+  onCreateScheduled,
 }: Props) {
-  const [filter, setFilter] = useState<FilterMode>('open')
-  const [query, setQuery] = useState('')
+  const [filter, setFilter] =
+    useState<FilterMode>('open')
+  const [query, setQuery] =
+    useState('')
+  const [inbox, setInbox] =
+    useState<InboxTask[]>([])
+  const [projects, setProjects] =
+    useState<Project[]>([])
+  const [creating, setCreating] =
+    useState(false)
+  const [title, setTitle] =
+    useState('')
+  const [duration, setDuration] =
+    useState(60)
+  const [priority, setPriority] =
+    useState<Priority>('medium')
+  const [category, setCategory] =
+    useState<Category>('neutral')
+  const [projectId, setProjectId] =
+    useState('')
+  const [deadlineDate, setDeadlineDate] =
+    useState('')
+  const [busy, setBusy] =
+    useState(false)
+  const [error, setError] =
+    useState<string | null>(null)
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
+  const [planningId, setPlanningId] =
+    useState<string | null>(null)
+  const [planningDate, setPlanningDate] =
+    useState(tomorrowDate)
+  const [planningTime, setPlanningTime] =
+    useState('09:00')
+
+  const refreshInbox =
+    useCallback(async () => {
+      try {
+        const next =
+          await listInboxTasks(userId)
+        setInbox(next)
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'Impossible de charger les tâches non planifiées.',
+        )
+      }
+    }, [userId])
+
+  useEffect(() => {
+    void Promise.all([
+      refreshInbox(),
+      listProjects(userId)
+        .then((items) =>
+          setProjects(
+            items.filter(
+              (project) =>
+                !project.archived,
+            ),
+          ),
+        )
+        .catch(() => setProjects([])),
+    ])
+  }, [refreshInbox, userId])
+
+  const scheduled = useMemo(() => {
+    const normalized =
+      query.trim().toLowerCase()
 
     return [...events]
+      .filter(
+        (event) => !event.virtual,
+      )
       .filter((event) => {
-        if (filter === 'open' && event.completed) return false
-        if (filter === 'completed' && !event.completed) return false
         if (
-          normalized &&
-          !event.title.toLowerCase().includes(normalized)
+          filter === 'open' &&
+          event.completed
         ) {
           return false
         }
-        return true
+
+        if (
+          filter === 'completed' &&
+          !event.completed
+        ) {
+          return false
+        }
+
+        return (
+          !normalized ||
+          event.title
+            .toLowerCase()
+            .includes(normalized)
+        )
       })
-      .sort((a, b) =>
-        (a.date ?? '').localeCompare(b.date ?? '') ||
-        a.startMin - b.startMin ||
-        a.title.localeCompare(b.title)
+      .sort(
+        (a, b) =>
+          (a.date ?? '').localeCompare(
+            b.date ?? '',
+          ) ||
+          a.startMin - b.startMin ||
+          a.title.localeCompare(
+            b.title,
+          ),
       )
   }, [events, filter, query])
 
-  const openCount = events.filter((event) => !event.completed).length
+  const visibleInbox = useMemo(() => {
+    if (filter === 'completed') {
+      return []
+    }
+
+    const normalized =
+      query.trim().toLowerCase()
+
+    return inbox.filter(
+      (task) =>
+        !normalized ||
+        task.title
+          .toLowerCase()
+          .includes(normalized),
+    )
+  }, [inbox, filter, query])
+
+  const openCount =
+    events.filter(
+      (event) =>
+        !event.virtual &&
+        !event.completed,
+    ).length + inbox.length
+
+  const create = async () => {
+    if (!title.trim() || busy) return
+
+    setBusy(true)
+    setError(null)
+
+    try {
+      await createInboxTask(
+        userId,
+        {
+          title: title.trim(),
+          durationMin: duration,
+          priority,
+          category,
+          projectId:
+            projectId || undefined,
+          deadlineDate:
+            deadlineDate || undefined,
+        },
+      )
+
+      setTitle('')
+      setDuration(60)
+      setPriority('medium')
+      setCategory('neutral')
+      setProjectId('')
+      setDeadlineDate('')
+      setCreating(false)
+      await refreshInbox()
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Création impossible.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const removeInbox = async (
+    task: InboxTask,
+  ) => {
+    if (
+      !window.confirm(
+        `Supprimer « ${task.title} » ?`,
+      )
+    ) {
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+
+    try {
+      await deleteInboxTask(task.id)
+      setInbox((current) =>
+        current.filter(
+          (item) =>
+            item.id !== task.id,
+        ),
+      )
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Suppression impossible.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const completeInbox = async (
+    task: InboxTask,
+  ) => {
+    setBusy(true)
+    setError(null)
+
+    try {
+      await completeInboxTask(
+        task.id,
+      )
+      setInbox((current) =>
+        current.filter(
+          (item) =>
+            item.id !== task.id,
+        ),
+      )
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Mise à jour impossible.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const scheduleInbox = async (
+    task: InboxTask,
+  ) => {
+    const [hour, minute] =
+      planningTime
+        .split(':')
+        .map(Number)
+    const startMin =
+      hour * 60 + minute
+    const date =
+      fromISODate(planningDate)
+
+    setBusy(true)
+    setError(null)
+
+    try {
+      await markInboxTaskPlanned(
+        task.id,
+      )
+
+      onCreateScheduled({
+        id: task.id,
+        title: task.title,
+        date: planningDate,
+        day: weekdayIndex(date),
+        startMin,
+        durationMin:
+          task.durationMin,
+        category:
+          task.category,
+        projectId:
+          task.projectId ??
+          undefined,
+        priority:
+          task.priority,
+        kind: 'flexible',
+        deadlineDate:
+          task.deadlineDate ??
+          undefined,
+      })
+
+      setInbox((current) =>
+        current.filter(
+          (item) =>
+            item.id !== task.id,
+        ),
+      )
+      setPlanningId(null)
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Planification impossible.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <main className="tasks-page">
       <header className="section-header">
         <div>
-          <span className="section-kicker">EXÉCUTION</span>
+          <span className="section-kicker">
+            EXÉCUTION
+          </span>
           <h1>Tâches</h1>
-          <p>{openCount} éléments encore ouverts cette semaine.</p>
+          <p>
+            {openCount} élément
+            {openCount > 1 ? 's' : ''}{' '}
+            à traiter.
+          </p>
         </div>
 
         <div className="tasks-header-actions">
           <button
             className="btn primary"
-            onClick={onCreate}
+            onClick={() =>
+              setCreating(
+                (value) => !value,
+              )}
           >
+            <Plus size={16}/>
             Nouvelle tâche
           </button>
+
           <div className="tasks-search">
-          <Search size={17}/>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Rechercher…"
-          />
+            <Search size={17}/>
+            <input
+              value={query}
+              onChange={(event) =>
+                setQuery(
+                  event.target.value,
+                )}
+              placeholder="Rechercher…"
+            />
           </div>
         </div>
       </header>
+
+      {creating && (
+        <section className="task-inbox-create">
+          <label className="task-inbox-title">
+            <span>Titre</span>
+            <input
+              autoFocus
+              value={title}
+              onChange={(event) =>
+                setTitle(
+                  event.target.value,
+                )}
+              placeholder="Ex. Terminer le rapport"
+              onKeyDown={(event) => {
+                if (
+                  event.key === 'Enter'
+                ) {
+                  void create()
+                }
+              }}
+            />
+          </label>
+
+          <label>
+            <span>Durée</span>
+            <select
+              value={duration}
+              onChange={(event) =>
+                setDuration(
+                  Number(
+                    event.target.value,
+                  ),
+                )}
+            >
+              <option value={30}>
+                30 min
+              </option>
+              <option value={45}>
+                45 min
+              </option>
+              <option value={60}>
+                1 h
+              </option>
+              <option value={90}>
+                1 h 30
+              </option>
+              <option value={120}>
+                2 h
+              </option>
+              <option value={180}>
+                3 h
+              </option>
+            </select>
+          </label>
+
+          <label>
+            <span>Priorité</span>
+            <select
+              value={priority}
+              onChange={(event) =>
+                setPriority(
+                  event.target.value as Priority,
+                )}
+            >
+              <option value="low">
+                Basse
+              </option>
+              <option value="medium">
+                Moyenne
+              </option>
+              <option value="high">
+                Haute
+              </option>
+            </select>
+          </label>
+
+          <label>
+            <span>Catégorie</span>
+            <select
+              value={category}
+              onChange={(event) =>
+                setCategory(
+                  event.target.value as Category,
+                )}
+            >
+              <option value="neutral">
+                Autre
+              </option>
+              <option value="course">
+                Cours
+              </option>
+              <option value="project">
+                Projet
+              </option>
+              <option value="personal">
+                Personnel
+              </option>
+              <option value="focus">
+                Focus
+              </option>
+              <option value="admin">
+                Administratif
+              </option>
+            </select>
+          </label>
+
+          <label>
+            <span>Projet</span>
+            <select
+              value={projectId}
+              onChange={(event) =>
+                setProjectId(
+                  event.target.value,
+                )}
+            >
+              <option value="">
+                Aucun
+              </option>
+              {projects.map(
+                (project) => (
+                  <option
+                    key={project.id}
+                    value={project.id}
+                  >
+                    {project.name}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+
+          <label>
+            <span>
+              Échéance facultative
+            </span>
+            <input
+              type="date"
+              value={deadlineDate}
+              onChange={(event) =>
+                setDeadlineDate(
+                  event.target.value,
+                )}
+            />
+          </label>
+
+          <div className="task-inbox-create-actions">
+            <button
+              className="btn secondary"
+              onClick={() =>
+                setCreating(false)}
+            >
+              Annuler
+            </button>
+            <button
+              className="btn primary"
+              disabled={
+                busy ||
+                !title.trim()
+              }
+              onClick={() =>
+                void create()}
+            >
+              Ajouter
+            </button>
+          </div>
+        </section>
+      )}
 
       <div className="tasks-toolbar">
         <Filter size={15}/>
@@ -80,65 +572,275 @@ export function TasksView({
           ['open', 'À faire'],
           ['all', 'Toutes'],
           ['completed', 'Terminées'],
-        ] as const).map(([value, label]) => (
-          <button
-            key={value}
-            className={filter === value ? 'active' : ''}
-            onClick={() => setFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+        ] as const).map(
+          ([value, label]) => (
+            <button
+              key={value}
+              className={
+                filter === value
+                  ? 'active'
+                  : ''
+              }
+              onClick={() =>
+                setFilter(value)}
+            >
+              {label}
+            </button>
+          ),
+        )}
       </div>
 
-      <section className="task-list">
-        {filtered.length === 0 ? (
-          <div className="empty-state">
-            <Check size={24}/>
-            <strong>Rien ici.</strong>
-            <span>Le planning est à jour pour ce filtre.</span>
+      {visibleInbox.length > 0 && (
+        <section className="task-inbox-section">
+          <div className="task-list-heading">
+            <div>
+              <Inbox size={16}/>
+              <strong>
+                Non planifiées
+              </strong>
+            </div>
+            <span>
+              {visibleInbox.length}
+            </span>
           </div>
-        ) : filtered.map((event) => (
-          <article
-            key={event.id}
-            className={`task-row ${event.completed ? 'completed' : ''}`}
-            onClick={() => onSelect(event.id)}
-          >
-            <button
-              className="task-check"
-              onClick={(clickEvent) => {
-                clickEvent.stopPropagation()
-                onToggle(event.id)
-              }}
-              aria-label={
-                event.completed
-                  ? 'Marquer comme non terminée'
-                  : 'Marquer comme terminée'
-              }
-            >
-              {event.completed
-                ? <Check size={15}/>
-                : <Circle size={15}/>
-              }
-            </button>
 
-            <div className="task-main">
-              <strong>{event.title}</strong>
+          <div className="task-inbox-list">
+            {visibleInbox.map(
+              (task) => (
+                <article
+                  className="task-inbox-row"
+                  key={task.id}
+                >
+                  <button
+                    className="task-check"
+                    disabled={busy}
+                    onClick={() =>
+                      void completeInbox(
+                        task,
+                      )}
+                    aria-label="Marquer comme terminée"
+                  >
+                    <Circle size={15}/>
+                  </button>
+
+                  <div className="task-main">
+                    <strong>
+                      {task.title}
+                    </strong>
+                    <span>
+                      {task.durationMin} min
+                      {task.deadlineDate
+                        ? ` · échéance ${new Intl.DateTimeFormat('fr-FR', {
+                            day: 'numeric',
+                            month: 'short',
+                          }).format(
+                            fromISODate(
+                              task.deadlineDate,
+                            ),
+                          )}`
+                        : ''}
+                    </span>
+                  </div>
+
+                  <span
+                    className={
+                      `task-category category-text-${task.category}`
+                    }
+                  >
+                    {CATEGORY_LABEL[
+                      task.category
+                    ]}
+                  </span>
+
+                  <div className="task-inbox-actions">
+                    <button
+                      onClick={() => {
+                        setPlanningId(
+                          planningId ===
+                            task.id
+                            ? null
+                            : task.id,
+                        )
+                      }}
+                    >
+                      <CalendarPlus size={15}/>
+                      Planifier
+                    </button>
+                    <button
+                      className="danger"
+                      disabled={busy}
+                      onClick={() =>
+                        void removeInbox(
+                          task,
+                        )}
+                    >
+                      <Trash2 size={15}/>
+                    </button>
+                  </div>
+
+                  {planningId ===
+                    task.id && (
+                    <div className="task-inline-schedule">
+                      <input
+                        type="date"
+                        value={
+                          planningDate
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setPlanningDate(
+                            event.target
+                              .value,
+                          )}
+                      />
+                      <input
+                        type="time"
+                        step={900}
+                        value={
+                          planningTime
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setPlanningTime(
+                            event.target
+                              .value,
+                          )}
+                      />
+                      <button
+                        className="btn primary"
+                        disabled={
+                          busy ||
+                          !planningDate
+                        }
+                        onClick={() =>
+                          void scheduleInbox(
+                            task,
+                          )}
+                      >
+                        Ajouter au calendrier
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ),
+            )}
+          </div>
+        </section>
+      )}
+
+      <section className="task-list-section">
+        <div className="task-list-heading">
+          <div>
+            <Check size={16}/>
+            <strong>
+              Planifiées
+            </strong>
+          </div>
+          <span>
+            {scheduled.length}
+          </span>
+        </div>
+
+        <section className="task-list">
+          {scheduled.length === 0 ? (
+            <div className="empty-state">
+              <Check size={24}/>
+              <strong>Rien ici.</strong>
               <span>
-                {eventDateLabel(event)} · {formatTime(event.startMin)} · {event.durationMin} min
+                Le planning est à jour pour ce filtre.
               </span>
             </div>
+          ) : (
+            scheduled.map(
+              (event) => (
+                <article
+                  key={event.id}
+                  className={
+                    `task-row ${event.completed ? 'completed' : ''}`
+                  }
+                  onClick={() =>
+                    onSelect(
+                      event.id,
+                    )}
+                >
+                  <button
+                    className="task-check"
+                    onClick={(
+                      clickEvent,
+                    ) => {
+                      clickEvent.stopPropagation()
+                      onToggle(
+                        event.id,
+                      )
+                    }}
+                    aria-label={
+                      event.completed
+                        ? 'Marquer comme non terminée'
+                        : 'Marquer comme terminée'
+                    }
+                  >
+                    {event.completed
+                      ? <Check size={15}/>
+                      : <Circle size={15}/>}
+                  </button>
 
-            <span className={`task-category category-text-${event.category}`}>
-              {CATEGORY_LABEL[event.category]}
-            </span>
+                  <div className="task-main">
+                    <strong>
+                      {event.title}
+                    </strong>
+                    <span>
+                      {eventDateLabel(
+                        event,
+                      )}{' '}
+                      ·{' '}
+                      {formatTime(
+                        event.startMin,
+                      )}{' '}
+                      ·{' '}
+                      {
+                        event.durationMin
+                      }{' '}
+                      min
+                    </span>
+                  </div>
 
-            <span className={`task-kind kind-${event.kind}`}>
-              {event.kind === 'fixed' ? 'Fixe' : 'Flexible'}
-            </span>
-          </article>
-        ))}
+                  <span
+                    className={
+                      `task-category category-text-${event.category}`
+                    }
+                  >
+                    {CATEGORY_LABEL[
+                      event.category
+                    ]}
+                  </span>
+
+                  <span
+                    className={
+                      `task-kind kind-${event.kind}`
+                    }
+                  >
+                    {event.kind ===
+                    'fixed'
+                      ? 'Fixe'
+                      : 'Flexible'}
+                  </span>
+                </article>
+              ),
+            )
+          )}
+        </section>
       </section>
+
+      {error && (
+        <p
+          className="planning-error"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
     </main>
   )
 }

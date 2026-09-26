@@ -31,6 +31,7 @@ export interface PlannerEvent {
   kind: EventKind
   locked?: boolean
   deadlineDay?: number
+  deadlineDate?: string
   windowStartMin?: number
   windowEndMin?: number
   energy?: EnergyLevel
