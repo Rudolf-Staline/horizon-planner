@@ -638,6 +638,7 @@ export default function App() {
           userId={planner.cloudUserId!}
           onClose={() => planner.setSelectedId(null)}
           onChange={planner.editEvent}
+          onDuplicate={planner.duplicateTask}
           onDeleteSegment={planner.deleteEvent}
           onDeleteTask={planner.deleteTask}
           onToggleSegment={planner.toggleCompleted}

@@ -69,6 +69,9 @@ import {
   toggleEventCompleted,
   toggleLogicalTaskCompleted,
 } from '../domain/taskMutations'
+import {
+  duplicateTask as buildDuplicateTask,
+} from '../domain/taskDuplication'
 
 function loadLocalSnapshot(
   userId: string,
@@ -809,6 +812,56 @@ export function usePlanner() {
     setLastConflictId(null)
   }
 
+  const duplicateTask = (id: string) => {
+    const target = events.find(
+      (event) => event.id === id,
+    )
+
+    if (
+      !target ||
+      target.entityType !== 'task' ||
+      isReadOnlyCalendarEvent(target)
+    ) {
+      return {
+        ok: false as const,
+        message: 'Seules les tâches modifiables peuvent être dupliquées.',
+      }
+    }
+
+    const taskId = logicalTaskId(target)
+    const taskSegments = events.filter(
+      (event) =>
+        event.entityType === 'task' &&
+        logicalTaskId(event) === taskId,
+    )
+    const todayDate = zonedDateToIso(
+      new Date(),
+      cloudPreferences.timezone,
+    )
+    const result = buildDuplicateTask(
+      target,
+      taskSegments,
+      events,
+      todayDate,
+      {
+        startMin: cloudPreferences.workdayStartMin,
+        endMin: cloudPreferences.workdayEndMin,
+        activeDays: cloudPreferences.activeDays,
+        bufferMin: cloudPreferences.bufferMin,
+        planningStepMin: cloudPreferences.planningStepMin,
+        focusBlockMin: cloudPreferences.focusBlockMin,
+        energyPreference: cloudPreferences.energyPreference,
+      },
+    )
+
+    if (!result.ok) return result
+
+    commit(result.events)
+    setSelectedId(result.selectedId)
+    setLastConflictId(null)
+    return result
+  }
+
   const replanOverdueTask = (
     id: string,
     newDeadlineDate: string,
@@ -1210,6 +1263,7 @@ export function usePlanner() {
     setSelectedId,
     updateEvent,
     editEvent,
+    duplicateTask,
     replanOverdueTask,
     createEvent,
     createEvents,

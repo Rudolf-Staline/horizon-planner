@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  Copy,
   Layers3,
   Lock,
   Trash2,
@@ -45,6 +46,11 @@ interface Props {
     id: string,
     patch: Partial<PlannerEvent>,
   ) => void
+  onDuplicate: (
+    id: string,
+  ) =>
+    | { ok: true; selectedId: string }
+    | { ok: false; message: string }
   onDeleteSegment: (id: string) => void
   onDeleteTask: (id: string) => void
   onToggleSegment: (id: string) => void
@@ -65,6 +71,7 @@ export function TaskDetailPanel({
   userId,
   onClose,
   onChange,
+  onDuplicate,
   onDeleteSegment,
   onDeleteTask,
   onToggleSegment,
@@ -129,6 +136,8 @@ export function TaskDetailPanel({
     constraintError,
     setConstraintError,
   ] = useState<string | null>(null)
+  const [duplicateError, setDuplicateError] =
+    useState<string | null>(null)
 
   const multiSegment =
     event.entityType === 'task' &&
@@ -201,6 +210,7 @@ export function TaskDetailPanel({
     )
     setReplanError(null)
     setConstraintError(null)
+    setDuplicateError(null)
   }, [event, segments.length, todayDate])
 
   const replan = () => {
@@ -336,6 +346,17 @@ export function TaskDetailPanel({
           ? minChunkMin
           : undefined,
     })
+    onClose()
+  }
+
+  const duplicate = () => {
+    const result = onDuplicate(event.id)
+    if (!result.ok) {
+      setDuplicateError(result.message)
+      return
+    }
+
+    setDuplicateError(null)
   }
 
   const removeSegment = () => {
@@ -835,7 +856,18 @@ export function TaskDetailPanel({
 
       {!readOnly && <div className="task-detail-actions">
         <div className="task-delete-group">
+          {event.entityType === 'task' && (
+            <button
+              type="button"
+              className="task-duplicate"
+              onClick={duplicate}
+            >
+              <Copy size={16}/>
+              Dupliquer
+            </button>
+          )}
           <button
+            type="button"
             className="task-delete"
             onClick={removeSegment}
           >
@@ -849,6 +881,7 @@ export function TaskDetailPanel({
 
           {multiSegment && (
             <button
+              type="button"
               className="task-delete task-delete-all"
               onClick={removeTask}
             >
@@ -861,12 +894,21 @@ export function TaskDetailPanel({
         </div>
 
         <button
+          type="button"
           className="btn primary"
           onClick={save}
         >
           Enregistrer
         </button>
       </div>}
+      {duplicateError && (
+        <p
+          className="planning-error task-constraint-error"
+          role="alert"
+        >
+          {duplicateError}
+        </p>
+      )}
     </aside>
   )
 }
