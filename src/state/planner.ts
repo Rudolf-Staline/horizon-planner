@@ -22,6 +22,7 @@ import {
   syncNormalizedPlanner,
 } from '../data/normalizedPlanner'
 import {
+  cacheAfterReset,
   choosePlannerSource,
   plannerReconcileMode,
   showsPlannerLoading,
@@ -365,7 +366,9 @@ export function usePlanner() {
 
         let normalizedReadFailed = false
 
-        const profile = await loadOwnProfile(user.id).catch(() => null)
+        // A failed profile read must not turn an old browser cache into the
+        // authoritative source after an administrator has reset the data.
+        const profile = await loadOwnProfile(user.id)
         const timeZone = profile?.preferences.timezone || browserTimezone || 'UTC'
         const normalized = await loadNormalizedPlanner(user.id, timeZone).catch(() => {
           normalizedReadFailed = true
@@ -394,7 +397,9 @@ export function usePlanner() {
           timezone: browserTimezone || DEFAULT_PLANNER_PREFERENCES.timezone,
         })
 
-        const local = loadLocalSnapshot(user.id)
+        const cached = loadLocalSnapshot(user.id)
+        const local = cacheAfterReset(cached, profile?.dataResetAt ?? 0)
+        if (cached && !local) clearLocalCache(user.id)
 
         const choice = choosePlannerSource({
           normalized,
@@ -834,8 +839,9 @@ export function usePlanner() {
         event.entityType === 'task' &&
         logicalTaskId(event) === taskId,
     )
+    const now = new Date()
     const todayDate = zonedDateToIso(
-      new Date(),
+      now,
       cloudPreferences.timezone,
     )
     const result = buildDuplicateTask(
@@ -852,6 +858,7 @@ export function usePlanner() {
         focusBlockMin: cloudPreferences.focusBlockMin,
         energyPreference: cloudPreferences.energyPreference,
       },
+      zonedDateMinutes(now, cloudPreferences.timezone),
     )
 
     if (!result.ok) return result

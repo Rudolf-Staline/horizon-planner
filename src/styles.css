@@ -80,6 +80,7 @@ button { color: inherit; }
 @media(max-width:900px){.settings-page{padding:24px 18px}.settings-grid{grid-template-columns:1fr}.settings-form-grid{grid-template-columns:1fr}.settings-account-link{align-items:stretch;flex-direction:column}.settings-source-form{grid-template-columns:1fr}.settings-source-list article{align-items:flex-start;flex-direction:column}.settings-source-list article>div:last-child{width:100%}.settings-source-list article>div:last-child .btn{flex:1}}
 @media(min-width:901px){.account-settings-grid{grid-template-columns:repeat(3,1fr)}.account-dialog-wide{width:min(820px,calc(100vw - 32px))}}
 .task-detail-form textarea{border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--navy);padding:10px;resize:vertical;outline:0;font:inherit;line-height:1.45}.task-detail-form textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(10,108,255,.07)}
+.task-detail-form{border:0;margin:0;padding:0;min-width:0}
 @media (pointer:coarse){.resize-handle{opacity:.95;height:24px;width:76px}.event-card{min-height:38px}}
 @media (max-width:900px){
   .topbar{padding:0 14px;grid-template-columns:1fr auto auto;gap:8px}

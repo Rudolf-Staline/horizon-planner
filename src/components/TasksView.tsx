@@ -63,6 +63,7 @@ interface Props {
   ) => void
   defaultDurationMin: number
   todayDate: string
+  currentMinutes: number
 }
 
 const tomorrowDate = (todayDate: string) =>
@@ -76,6 +77,7 @@ export function TasksView({
   onCreateScheduled,
   defaultDurationMin,
   todayDate,
+  currentMinutes,
 }: Props) {
   const [filter, setFilter] =
     useState<FilterMode>('open')
@@ -425,6 +427,14 @@ export function TasksView({
         .map(Number)
     const startMin =
       hour * 60 + minute
+    if (!Number.isFinite(startMin) || startMin < 0 || startMin + task.durationMin > 1440) {
+      setError('Choisissez une heure valide permettant de terminer la tâche avant minuit.')
+      return
+    }
+    if (planningDate === todayDate && startMin < currentMinutes) {
+      setError('Le créneau choisi est déjà passé. Sélectionnez une heure ultérieure.')
+      return
+    }
     const date =
       fromISODate(planningDate)
 

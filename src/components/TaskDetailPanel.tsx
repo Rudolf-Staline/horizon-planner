@@ -228,6 +228,11 @@ export function TaskDetailPanel({
   }
 
   const save = () => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setConstraintError('Choisissez une date valide avant d’enregistrer.')
+      return
+    }
+
     const nextDate = fromISODate(date)
     const isFlexibleTask =
       event.entityType === 'task' &&
@@ -521,7 +526,7 @@ export function TaskDetailPanel({
         </section>
       )}
 
-      <div className="task-detail-form">
+      <fieldset className="task-detail-form" disabled={readOnly}>
         <label>
           <span>Titre</span>
           <input
@@ -839,7 +844,7 @@ export function TaskDetailPanel({
           </span>
         </label>
 
-        <label className="task-detail-check">
+        {event.entityType === 'task' && <label className="task-detail-check">
           <input
             type="checkbox"
             checked={Boolean(event.completed)}
@@ -851,8 +856,8 @@ export function TaskDetailPanel({
               ? 'Ce bloc est terminé'
               : 'Terminée'}
           </span>
-        </label>
-      </div>
+        </label>}
+      </fieldset>
 
       {!readOnly && <div className="task-detail-actions">
         <div className="task-delete-group">

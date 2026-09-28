@@ -81,4 +81,87 @@ describe('task duplication', () => {
     if (!result.ok) return
     expect(result.events.at(-1)?.deadlineDate).toBeUndefined()
   })
+
+  it('does not schedule a new copy in a time slot that has already passed', () => {
+    const result = duplicateTask(
+      task,
+      [task],
+      [task],
+      '2026-09-28',
+      {
+        startMin: 7 * 60,
+        endMin: 18 * 60,
+        activeDays: [0, 1, 2, 3, 4],
+        bufferMin: 0,
+        planningStepMin: 15,
+      },
+      10 * 60 + 7,
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const copy = result.events.at(-1)!
+    expect(
+      copy.date === '2026-09-28'
+        ? copy.startMin >= 10 * 60 + 15
+        : copy.date! > '2026-09-28',
+    ).toBe(true)
+  })
+
+  it('preserves fixed tasks as fixed, in one block', () => {
+    const fixed = {
+      ...task,
+      kind: 'fixed' as const,
+      splittable: true,
+    }
+    const result = duplicateTask(
+      fixed,
+      [fixed],
+      [fixed],
+      '2026-09-28',
+      {
+        startMin: 7 * 60,
+        endMin: 18 * 60,
+        activeDays: [0, 1, 2, 3, 4],
+        bufferMin: 0,
+        planningStepMin: 15,
+      },
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.events).toHaveLength(2)
+    expect(result.events[1].kind).toBe('fixed')
+    expect(result.events[1].segmentCount).toBe(1)
+  })
+
+  it('searches the next week when a task has no deadline on Sunday', () => {
+    const sunday = {
+      ...task,
+      id: 'sunday-task',
+      taskId: 'sunday-task',
+      date: '2026-09-27',
+      day: 6,
+      deadlineDate: undefined,
+      deadlineDay: undefined,
+    }
+    const result = duplicateTask(
+      sunday,
+      [sunday],
+      [sunday],
+      '2026-09-27',
+      {
+        startMin: 7 * 60,
+        endMin: 18 * 60,
+        activeDays: [0, 1, 2, 3, 4],
+        bufferMin: 0,
+        planningStepMin: 15,
+      },
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.events[1].date).toBe('2026-09-28')
+    expect(result.events[1].deadlineDate).toBeUndefined()
+  })
 })

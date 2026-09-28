@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PlannerEvent } from '../domain/types'
 import {
+  cacheAfterReset,
   choosePlannerSource,
   plannerReconcileMode,
   showsPlannerLoading,
@@ -91,6 +92,19 @@ describe('planner reconciliation', () => {
 
 
 describe('planner reconciliation edge cases', () => {
+  it('does not restore deleted cloud rows from a cache created before a reset', () => {
+    const cached = { events: [event('deleted')], modifiedAt: 100 }
+    const choice = choosePlannerSource({
+      normalized: null,
+      local: cacheAfterReset(cached, 200),
+      now: 300,
+    })
+    expect(choice.events).toEqual([])
+    expect(choice.shouldPush).toBe(false)
+    expect(cacheAfterReset({ ...cached, modifiedAt: 250 }, 200)).toEqual({
+      ...cached, modifiedAt: 250,
+    })
+  })
   it('uses normalized data on equal timestamps to avoid a redundant push', () => {
     const choice = choosePlannerSource({
       normalized: {

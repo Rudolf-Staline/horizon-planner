@@ -1,22 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { AccountDialog } from './components/AccountDialog'
-import { AdminView } from './components/AdminView'
-import { AnalyticsView } from './components/AnalyticsView'
-import { AuthGate } from './components/AuthGate'
-import {
-  CalendarView,
-  type CalendarMode,
-} from './components/CalendarView'
-import { RoutinesView } from './components/RoutinesView'
-import { ProjectsView } from './components/ProjectsView'
-import { CommandPalette } from './components/CommandPalette'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import type { CalendarMode } from './components/CalendarView'
 import { ConflictBar } from './components/ConflictBar'
 import { Header } from './components/Header'
-import { NowView } from './components/NowView'
 import { Sidebar, type Section } from './components/Sidebar'
-import { TasksView } from './components/TasksView'
-import { TaskDetailPanel } from './components/TaskDetailPanel'
-import { SettingsView } from './components/SettingsView'
 import { usePlanner } from './state/planner'
 import type { PlannerEvent } from './domain/types'
 import { buildInlineTask } from './domain/quickCreate'
@@ -29,6 +15,7 @@ import {
 } from './utils/date'
 import {
   localDateTimeToIso,
+  zonedDateMinutes,
   zonedDateToIso,
 } from './utils/timezone'
 import {
@@ -43,6 +30,19 @@ import {
   type Routine,
   type RoutineException,
 } from './data/routines'
+
+const AdminView = lazy(() => import('./components/AdminView').then((module) => ({ default: module.AdminView })))
+const AuthGate = lazy(() => import('./components/AuthGate').then((module) => ({ default: module.AuthGate })))
+const AccountDialog = lazy(() => import('./components/AccountDialog').then((module) => ({ default: module.AccountDialog })))
+const CalendarView = lazy(() => import('./components/CalendarView').then((module) => ({ default: module.CalendarView })))
+const CommandPalette = lazy(() => import('./components/CommandPalette').then((module) => ({ default: module.CommandPalette })))
+const TaskDetailPanel = lazy(() => import('./components/TaskDetailPanel').then((module) => ({ default: module.TaskDetailPanel })))
+const AnalyticsView = lazy(() => import('./components/AnalyticsView').then((module) => ({ default: module.AnalyticsView })))
+const RoutinesView = lazy(() => import('./components/RoutinesView').then((module) => ({ default: module.RoutinesView })))
+const ProjectsView = lazy(() => import('./components/ProjectsView').then((module) => ({ default: module.ProjectsView })))
+const NowView = lazy(() => import('./components/NowView').then((module) => ({ default: module.NowView })))
+const TasksView = lazy(() => import('./components/TasksView').then((module) => ({ default: module.TasksView })))
+const SettingsView = lazy(() => import('./components/SettingsView').then((module) => ({ default: module.SettingsView })))
 
 function preferredCalendarMode(): CalendarMode {
   return window.matchMedia?.('(max-width: 900px)').matches
@@ -374,9 +374,9 @@ export default function App() {
     'authenticated'
   ) {
     return (
-      <AuthGate
-        status={planner.authStatus}
-      />
+      <Suspense fallback={<main className="auth-gate auth-loading" role="status">Vérification de votre session…</main>}>
+        <AuthGate status={planner.authStatus}/>
+      </Suspense>
     )
   }
 
@@ -442,6 +442,7 @@ export default function App() {
           }}
         />
 
+        <Suspense fallback={<main className="section-loading" role="status">Chargement du calendrier…</main>}>
         {section === 'calendar' &&
           view !== 'now' && (
             <CalendarView
@@ -504,7 +505,9 @@ export default function App() {
               timeZone={planner.cloudPreferences.timezone}
             />
           )}
+        </Suspense>
 
+        <Suspense fallback={<main className="section-loading" role="status">Chargement…</main>}>
         {section === 'tasks' && (
           planner.cloudUserId && (
             <TasksView
@@ -512,6 +515,7 @@ export default function App() {
               events={planner.events}
               defaultDurationMin={planner.cloudPreferences.defaultDurationMin}
               todayDate={zonedDateToIso(new Date(), planner.cloudPreferences.timezone)}
+              currentMinutes={zonedDateMinutes(new Date(), planner.cloudPreferences.timezone)}
               onToggleTask={planner.toggleTaskCompleted}
               onSelect={planner.setSelectedId}
               onCreateScheduled={(event) => {
@@ -578,8 +582,10 @@ export default function App() {
 
         {section === 'admin' &&
           isAdmin && <AdminView/>}
+        </Suspense>
       </div>
 
+      <Suspense fallback={null}>
       {accountOpen && (
         <AccountDialog
           cloudStatus={
@@ -651,6 +657,7 @@ export default function App() {
           readOnly={isReadOnlyCalendarEvent(planner.selected)}
         />
       )}
+      </Suspense>
 
       {planner.conflictEvent &&
         planner.conflicts.length >

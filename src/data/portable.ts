@@ -65,8 +65,21 @@ export async function exportAccountBackup(userId: string): Promise<HorizonBackup
 }
 
 export async function importAccountBackup(userId: string, backup: HorizonBackup) {
-  if (backup.format !== 'horizon-backup' || backup.version !== 1) {
+  if (!backup || backup.format !== 'horizon-backup' || backup.version !== 1) {
     throw new Error('Ce fichier n’est pas une sauvegarde Horizon reconnue.')
+  }
+
+  // Reject incomplete files before the first write: an import spans several
+  // PostgREST calls and cannot be rolled back by the browser.
+  const collections = [
+    backup.projects, backup.tasks, backup.taskConstraints,
+    backup.routines, backup.routineExceptions, backup.calendarSources,
+    backup.calendarEvents, backup.plannedSegments,
+  ]
+  if (collections.some((items) => !Array.isArray(items) || items.some(
+    (item) => !item || typeof item !== 'object' || Array.isArray(item),
+  ))) {
+    throw new Error('La sauvegarde est incomplète ou endommagée.')
   }
 
   const client = requireSupabase()

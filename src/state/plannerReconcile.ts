@@ -35,6 +35,13 @@ export function showsPlannerLoading(
   return mode === 'initial'
 }
 
+export function cacheAfterReset<T extends PlannerCandidate>(
+  local: T | null,
+  dataResetAt: number,
+): T | null {
+  return local && local.modifiedAt > dataResetAt ? local : null
+}
+
 export function choosePlannerSource(input: {
   normalized: PlannerCandidate | null
   local: PlannerCandidate | null

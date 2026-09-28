@@ -86,7 +86,7 @@ export function SettingsView({ userId, preferences, events, onSaved, onOpenAccou
     try {
       const parsed = JSON.parse(await file.text()) as HorizonBackup
       await importAccountBackup(userId, parsed)
-      setNotice('Sauvegarde importée. Horizon va recharger vos données.')
+      setNotice('Données fusionnées. Horizon va recharger vos données.')
       window.setTimeout(() => window.location.reload(), 650)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Import impossible.')
@@ -169,7 +169,7 @@ export function SettingsView({ userId, preferences, events, onSaved, onOpenAccou
         <article className="settings-card">
           <div className="settings-card-head"><Download size={18}/><div><h2>Données et portabilité</h2><p>Vous pouvez récupérer vos données à tout moment, sans passer par l’administration.</p></div></div>
           <div className="settings-action-row"><button className="btn secondary" disabled={busy} onClick={() => void exportJson()}><Download size={15}/> Exporter JSON</button><button className="btn secondary" onClick={() => downloadPlannerIcs(events, preferences.timezone)}><Calendar size={15}/> Exporter calendrier ICS</button></div>
-          <label className="file-drop"><Upload size={18}/><span>Importer une sauvegarde JSON</span><input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importJson(file); e.currentTarget.value = '' }}/></label>
+          <label className="file-drop"><Upload size={18}/><span>Fusionner une sauvegarde JSON</span><input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importJson(file); e.currentTarget.value = '' }}/></label>
         </article>
       </section>
 

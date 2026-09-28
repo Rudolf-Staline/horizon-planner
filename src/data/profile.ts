@@ -12,6 +12,7 @@ export type UserProfile = {
   displayName: string | null
   timezone: string
   role: UserRole
+  dataResetAt: number
   preferences: PlannerPreferences
 }
 
@@ -22,7 +23,7 @@ export async function loadOwnProfile(
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name, timezone, week_starts_on, workday_start_min, workday_end_min, active_days, default_duration_min, focus_block_min, buffer_min, energy_preference, planning_step_min, notifications_enabled, reminder_lead_min, role')
+    .select('id, display_name, timezone, week_starts_on, workday_start_min, workday_end_min, active_days, default_duration_min, focus_block_min, buffer_min, energy_preference, planning_step_min, notifications_enabled, reminder_lead_min, role, data_reset_at')
     .eq('id', userId)
     .maybeSingle()
 
@@ -34,6 +35,7 @@ export async function loadOwnProfile(
     displayName: data.display_name,
     timezone: data.timezone,
     role: data.role === 'admin' ? 'admin' : 'user',
+    dataResetAt: data.data_reset_at ? Date.parse(data.data_reset_at) : 0,
     preferences: {
       ...DEFAULT_PLANNER_PREFERENCES,
       timezone: data.timezone ?? DEFAULT_PLANNER_PREFERENCES.timezone,

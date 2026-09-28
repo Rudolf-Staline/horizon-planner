@@ -1,7 +1,9 @@
 import { planFlexibleTask } from './scheduling'
 import type { SchedulingOptions } from './scheduling'
 import {
+  addDays,
   fromISODate,
+  toISODate,
   weekdayIndex,
 } from '../utils/date'
 import type { PlannerEvent } from './types'
@@ -33,6 +35,7 @@ export function duplicateTask(
   events: PlannerEvent[],
   todayDate: string,
   options: SchedulingOptions,
+  currentMinutes = 0,
 ): DuplicateTaskResult {
   if (target.entityType !== 'task') {
     return {
@@ -55,6 +58,9 @@ export function duplicateTask(
     ? first.deadlineDate
     : undefined
   const taskId = crypto.randomUUID()
+  // A task without a deadline still needs a search window beyond Sunday.
+  const searchDeadline = deadlineDate ??
+    toISODate(addDays(fromISODate(firstDate), 7))
   const placementDraft: PlannerEvent = {
     ...first,
     id: `duplicate:${taskId}`,
@@ -69,17 +75,36 @@ export function duplicateTask(
     kind: 'flexible',
     locked: false,
     completed: false,
-    deadlineDate,
-    deadlineDay: deadlineDate
-      ? weekdayIndex(fromISODate(deadlineDate))
-      : undefined,
+    deadlineDate: searchDeadline,
+    deadlineDay: weekdayIndex(fromISODate(searchDeadline)),
+    splittable:
+      first.kind === 'flexible' &&
+      (segments.length > 1 || Boolean(first.splittable)),
     segmentIndex: 0,
     segmentCount: 1,
   }
 
+  const blockers = [...events]
+  if (firstDate === todayDate && currentMinutes > 0) {
+    const step = options.planningStepMin ?? 15
+    const nextMinute = Math.min(
+      1440,
+      Math.ceil(currentMinutes / step) * step,
+    )
+    blockers.push({
+      ...placementDraft,
+      id: `elapsed:${taskId}`,
+      date: todayDate,
+      startMin: 0,
+      durationMin: nextMinute,
+      kind: 'fixed',
+      locked: true,
+    })
+  }
+
   const plan = planFlexibleTask(
     placementDraft,
-    events,
+    blockers,
     options,
   )
 
@@ -104,8 +129,15 @@ export function duplicateTask(
       day: placement.day,
       startMin: placement.startMin,
       durationMin: placement.durationMin,
+      kind: first.kind,
       locked: false,
       completed: false,
+      splittable: first.kind === 'flexible'
+        ? placementDraft.splittable
+        : undefined,
+      minChunkMin: first.kind === 'flexible'
+        ? first.minChunkMin
+        : undefined,
       deadlineDate,
       deadlineDay: deadlineDate
         ? weekdayIndex(fromISODate(deadlineDate))
