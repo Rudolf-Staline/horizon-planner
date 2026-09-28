@@ -5,22 +5,7 @@ export async function currentCloudUser(): Promise<User | null> {
   if (!supabase) return null
 
   const { data, error } = await supabase.auth.getUser()
-  if (error) {
-    const message = error.message.toLowerCase()
-
-    // A browser can retain a refresh token that has since been revoked or
-    // removed from Supabase. Clear only the local session so the next login
-    // starts from a clean state without signing the user out elsewhere.
-    if (
-      message.includes('refresh token') ||
-      message.includes('session not found') ||
-      message.includes('jwt expired')
-    ) {
-      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
-    }
-
-    return null
-  }
+  if (error) return null
   return data.user ?? null
 }
 

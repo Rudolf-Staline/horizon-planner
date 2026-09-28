@@ -330,6 +330,7 @@ export function usePlanner() {
     let cancelled = false
     let backgroundRefreshInFlight = false
     let backgroundRefreshPending = false
+    let initialAuthEventSeen = false
 
     const reconcile = async (
       user: Awaited<ReturnType<typeof currentCloudUser>>,
@@ -603,11 +604,11 @@ export function usePlanner() {
       )
     }
 
-    currentCloudUser().then((user) => reconcile(user))
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      initialAuthEventSeen = true
+
       if (event === 'PASSWORD_RECOVERY') {
         recoveryRef.current = true
         setAuthStatus('recovery')
@@ -622,6 +623,15 @@ export function usePlanner() {
         )
         void reconcile(user, mode)
       })
+    })
+
+    // Register the listener before checking the current user. Otherwise, a
+    // slow refresh of an old session can resolve after a fresh login and
+    // overwrite the authenticated state with "anonymous".
+    currentCloudUser().then((user) => {
+      if (!initialAuthEventSeen) {
+        void reconcile(user)
+      }
     })
 
     return () => {
