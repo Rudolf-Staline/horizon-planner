@@ -1,5 +1,4 @@
 import type { PlannerEvent } from '../domain/types'
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { weekdayIndex, fromISODate } from '../utils/date'
 import {
   localDateTimeToIso,
@@ -257,9 +256,7 @@ function addCommonSpecialEvents(
 
 export async function parseEtdPdf(file: File, timeZone = 'Africa/Casablanca', now = new Date()): Promise<EtdImportResult> {
   const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  GlobalWorkerOptions.workerSrc = typeof window === 'undefined'
-    ? new URL('../../node_modules/pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
-    : workerSrc
+  GlobalWorkerOptions.workerSrc = new URL('../../node_modules/pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
   const data = new Uint8Array(await file.arrayBuffer())
   const document = await getDocument({ data }).promise
   const candidates: EtdCandidate[] = []
