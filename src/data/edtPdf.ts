@@ -287,7 +287,6 @@ export async function parseEtdPdf(file: File, timeZone = 'Africa/Casablanca', no
       slots.push({ startMin, durationMin: endMin - startMin, center: (times[index].top + times[index + 1].top) / 2 })
     }
     const centers = slots.map((slot) => slot.center)
-    const dayCenters = dates.map((date) => date.x)
     const weekKey = dates[0].date
 
     for (const [dayIndex, day] of dates.entries()) {
