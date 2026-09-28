@@ -16,13 +16,12 @@ import {
   DEFAULT_PLANNER_PREFERENCES,
   type PlannerPreferences,
 } from '../domain/preferences'
-import { setPlannerResetEpoch, supabase } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import {
   loadNormalizedPlanner,
   syncNormalizedPlanner,
 } from '../data/normalizedPlanner'
 import {
-  cacheAfterReset,
   choosePlannerSource,
   plannerReconcileMode,
   showsPlannerLoading,
@@ -88,14 +87,12 @@ function persistLocal(
   userId: string,
   events: PlannerEvent[],
   modifiedAt: number,
-  resetAt: number,
 ) {
   localStorage.setItem(
     plannerStorageKey(userId),
     serializeLocalPlannerEnvelope(
       events,
       modifiedAt,
-      resetAt,
     ),
   )
 }
@@ -278,7 +275,6 @@ export function usePlanner() {
   const undoStack = useRef<Snapshot[]>([])
   const redoStack = useRef<Snapshot[]>([])
   const modifiedAtRef = useRef(0)
-  const resetAtRef = useRef(0)
   const eventsRef = useRef<PlannerEvent[]>([])
   const cloudUserIdRef = useRef<string | null>(null)
   const realtimeChannelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null)
@@ -302,8 +298,6 @@ export function usePlanner() {
       realtimeChannelRef.current = null
     }
     modifiedAtRef.current = 0
-    resetAtRef.current = 0
-    setPlannerResetEpoch(0)
     eventsRef.current = []
     undoStack.current = []
     redoStack.current = []
@@ -371,11 +365,7 @@ export function usePlanner() {
 
         let normalizedReadFailed = false
 
-        // A failed profile read must not turn an old browser cache into the
-        // authoritative source after an administrator has reset the data.
-        const profile = await loadOwnProfile(user.id)
-        resetAtRef.current = profile?.dataResetAt ?? 0
-        setPlannerResetEpoch(resetAtRef.current)
+        const profile = await loadOwnProfile(user.id).catch(() => null)
         const timeZone = profile?.preferences.timezone || browserTimezone || 'UTC'
         const normalized = await loadNormalizedPlanner(user.id, timeZone).catch(() => {
           normalizedReadFailed = true
@@ -404,9 +394,7 @@ export function usePlanner() {
           timezone: browserTimezone || DEFAULT_PLANNER_PREFERENCES.timezone,
         })
 
-        const cached = loadLocalSnapshot(user.id)
-        const local = cacheAfterReset(cached, profile?.dataResetAt ?? 0)
-        if (cached && !local) clearLocalCache(user.id)
+        const local = loadLocalSnapshot(user.id)
 
         const choice = choosePlannerSource({
           normalized,
@@ -463,7 +451,7 @@ export function usePlanner() {
 
         modifiedAtRef.current = nextModifiedAt
         eventsRef.current = nextEvents
-        persistLocal(user.id, nextEvents, nextModifiedAt, resetAtRef.current)
+        persistLocal(user.id, nextEvents, nextModifiedAt)
 
         if (
           shouldPush &&
@@ -658,7 +646,7 @@ export function usePlanner() {
     }
 
     eventsRef.current = events
-    persistLocal(userId, events, modifiedAtRef.current, resetAtRef.current)
+    persistLocal(userId, events, modifiedAtRef.current)
 
     if (skipNextCloudPushRef.current) {
       skipNextCloudPushRef.current = false
@@ -1098,6 +1086,38 @@ export function usePlanner() {
     createEvents([event])
   }
 
+  const importCalendarEvents = (
+    imported: PlannerEvent[],
+    weekKey: string,
+  ) => {
+    if (authStatus !== 'authenticated' || imported.length === 0) return
+
+    const prefix = `edt:${weekKey}:`
+    const importedIds = new Set(imported.map((event) => event.id))
+    const now = new Date()
+    const todayDate = zonedDateToIso(now, cloudPreferences.timezone)
+    const currentMinutes = zonedDateMinutes(now, cloudPreferences.timezone)
+    const next = [
+      ...events.filter((event) => {
+        if (
+          event.source !== 'manual' ||
+          !event.externalId?.startsWith(prefix)
+        ) {
+          return true
+        }
+        const alreadyStarted =
+          (event.date ?? '') < todayDate ||
+          (event.date === todayDate && event.startMin < currentMinutes)
+        return importedIds.has(event.id) || alreadyStarted
+      }),
+      ...imported.filter(
+        (event) => !events.some((current) => current.id === event.id),
+      ),
+    ]
+
+    commit(next)
+  }
+
   const toggleCompleted = (id: string) => {
     const target = events.find((event) => event.id === id)
     if (target && isReadOnlyCalendarEvent(target)) return
@@ -1281,6 +1301,7 @@ export function usePlanner() {
     replanOverdueTask,
     createEvent,
     createEvents,
+    importCalendarEvents,
     toggleCompleted,
     toggleTaskCompleted,
     deleteEvent,

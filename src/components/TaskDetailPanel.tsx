@@ -526,7 +526,7 @@ export function TaskDetailPanel({
         </section>
       )}
 
-      <fieldset className="task-detail-form" disabled={readOnly}>
+      <div className="task-detail-form">
         <label>
           <span>Titre</span>
           <input
@@ -844,7 +844,7 @@ export function TaskDetailPanel({
           </span>
         </label>
 
-        {event.entityType === 'task' && <label className="task-detail-check">
+        <label className="task-detail-check">
           <input
             type="checkbox"
             checked={Boolean(event.completed)}
@@ -856,8 +856,8 @@ export function TaskDetailPanel({
               ? 'Ce bloc est terminé'
               : 'Terminée'}
           </span>
-        </label>}
-      </fieldset>
+        </label>
+      </div>
 
       {!readOnly && <div className="task-detail-actions">
         <div className="task-delete-group">

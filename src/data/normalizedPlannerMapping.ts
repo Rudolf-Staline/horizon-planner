@@ -280,7 +280,7 @@ export function buildNormalizedPlannerRows(
               event.locked,
             ),
           source: 'manual',
-          external_id: null,
+          external_id: event.externalId ?? null,
         }),
       )
 

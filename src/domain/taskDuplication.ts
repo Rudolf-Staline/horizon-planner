@@ -129,15 +129,8 @@ export function duplicateTask(
       day: placement.day,
       startMin: placement.startMin,
       durationMin: placement.durationMin,
-      kind: first.kind,
       locked: false,
       completed: false,
-      splittable: first.kind === 'flexible'
-        ? placementDraft.splittable
-        : undefined,
-      minChunkMin: first.kind === 'flexible'
-        ? first.minChunkMin
-        : undefined,
       deadlineDate,
       deadlineDay: deadlineDate
         ? weekdayIndex(fromISODate(deadlineDate))

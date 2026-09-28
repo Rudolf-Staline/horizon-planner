@@ -22,19 +22,21 @@ import {
   syncCalendarSource,
   type CalendarSource,
 } from '../data/calendarSources'
+import type { EtdCandidate } from '../data/edtPdf'
 
 interface Props {
   userId: string
   preferences: PlannerPreferences
   events: PlannerEvent[]
   onSaved: (preferences: PlannerPreferences) => void
+  onImportEvents: (events: PlannerEvent[], weekKey: string) => void
   onOpenAccount: () => void
   onExternalEventsRemoved: (sourceId: string, externalIds?: string[]) => void
 }
 
 const dayLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
-export function SettingsView({ userId, preferences, events, onSaved, onOpenAccount, onExternalEventsRemoved }: Props) {
+export function SettingsView({ userId, preferences, events, onSaved, onImportEvents, onOpenAccount, onExternalEventsRemoved }: Props) {
   const [draft, setDraft] = useState(preferences)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -46,6 +48,10 @@ export function SettingsView({ userId, preferences, events, onSaved, onOpenAccou
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(
     typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
   )
+  const [edtCandidates, setEdtCandidates] = useState<EtdCandidate[]>([])
+  const [edtWeekLabel, setEdtWeekLabel] = useState('')
+  const [edtWeekKey, setEdtWeekKey] = useState('')
+  const [edtFileName, setEdtFileName] = useState('')
 
   useEffect(() => setDraft(preferences), [preferences])
   useEffect(() => { void listCalendarSources(userId).then(setSources).catch(() => setSources([])) }, [userId])
@@ -86,13 +92,50 @@ export function SettingsView({ userId, preferences, events, onSaved, onOpenAccou
     try {
       const parsed = JSON.parse(await file.text()) as HorizonBackup
       await importAccountBackup(userId, parsed)
-      setNotice('Données fusionnées. Horizon va recharger vos données.')
+      setNotice('Sauvegarde importée. Horizon va recharger vos données.')
       window.setTimeout(() => window.location.reload(), 650)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Import impossible.')
     } finally {
       setBusy(false)
     }
+  }
+
+  const importEtd = async (file: File) => {
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const { parseEtdPdf } = await import('../data/edtPdf')
+      const parsed = await parseEtdPdf(file, preferences.timezone)
+      if (parsed.candidates.length === 0) {
+        throw new Error('Aucun créneau futur n’a été reconnu dans cet emploi du temps.')
+      }
+      setEdtCandidates(parsed.candidates)
+      setEdtWeekLabel(parsed.weekLabel)
+      setEdtWeekKey(parsed.weekStart)
+      setEdtFileName(file.name)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Impossible de lire l’emploi du temps PDF.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleEdtCandidate = (id: string) => {
+    setEdtCandidates((current) => current.map((candidate) => candidate.id === id ? { ...candidate, defaultSelected: !candidate.defaultSelected } : candidate))
+  }
+
+  const confirmEtdImport = () => {
+    const selected = edtCandidates.filter((candidate) => candidate.defaultSelected)
+    if (selected.length === 0) {
+      setError('Sélectionnez au moins un créneau à importer.')
+      return
+    }
+    onImportEvents(selected, edtWeekKey)
+    setNotice(`${selected.length} créneau(x) d’emploi du temps ajouté(s) au planning.`)
+    setEdtCandidates([])
+    setEdtFileName('')
   }
 
   const requestNotifications = async () => {
@@ -169,7 +212,16 @@ export function SettingsView({ userId, preferences, events, onSaved, onOpenAccou
         <article className="settings-card">
           <div className="settings-card-head"><Download size={18}/><div><h2>Données et portabilité</h2><p>Vous pouvez récupérer vos données à tout moment, sans passer par l’administration.</p></div></div>
           <div className="settings-action-row"><button className="btn secondary" disabled={busy} onClick={() => void exportJson()}><Download size={15}/> Exporter JSON</button><button className="btn secondary" onClick={() => downloadPlannerIcs(events, preferences.timezone)}><Calendar size={15}/> Exporter calendrier ICS</button></div>
-          <label className="file-drop"><Upload size={18}/><span>Fusionner une sauvegarde JSON</span><input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importJson(file); e.currentTarget.value = '' }}/></label>
+          <label className="file-drop"><Upload size={18}/><span>Importer une sauvegarde JSON</span><input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importJson(file); e.currentTarget.value = '' }}/></label>
+        </article>
+
+        <article className="settings-card settings-schedule-import">
+          <div className="settings-card-head"><Upload size={18}/><div><h2>Importer un emploi du temps</h2><p>Ajoutez manuellement le PDF hebdomadaire. Seuls les créneaux dont le début n’est pas encore passé sont proposés.</p></div></div>
+          <label className="file-drop"><Upload size={18}/><span>{edtFileName || 'Choisir le PDF de la semaine'}</span><input type="file" accept="application/pdf,.pdf" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importEtd(file); e.currentTarget.value = '' }}/></label>
+          {edtCandidates.length > 0 && <div className="edt-import-review">
+            <div className="edt-import-review-head"><div><strong>Créneaux détectés</strong><span>{edtWeekLabel} · cochez uniquement votre groupe</span></div><button type="button" className="btn primary" onClick={confirmEtdImport}>Ajouter {edtCandidates.filter((candidate) => candidate.defaultSelected).length}</button></div>
+            <div className="edt-import-list">{edtCandidates.map((candidate) => <label key={candidate.id} className={candidate.defaultSelected ? 'selected' : ''}><input type="checkbox" checked={candidate.defaultSelected} onChange={() => toggleEdtCandidate(candidate.id)}/><span><strong>{candidate.title}</strong><small>{candidate.date} · {String(Math.floor(candidate.startMin / 60)).padStart(2, '0')}:{String(candidate.startMin % 60).padStart(2, '0')}–{String(Math.floor((candidate.startMin + candidate.durationMin) / 60)).padStart(2, '0')}:{String((candidate.startMin + candidate.durationMin) % 60).padStart(2, '0')} · {candidate.selectionLabel}</small></span></label>)}</div>
+          </div>}
         </article>
       </section>
 
