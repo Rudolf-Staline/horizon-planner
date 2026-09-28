@@ -9,6 +9,7 @@ export type LocalPlannerEnvelope = {
   schemaVersion: 2
   events: PlannerEvent[]
   modifiedAt: number
+  resetAt?: number
 }
 
 export function plannerStorageKey(
@@ -47,11 +48,13 @@ export function parseLocalPlannerEnvelope(
 export function serializeLocalPlannerEnvelope(
   events: PlannerEvent[],
   modifiedAt: number,
+  resetAt = 0,
 ) {
   const envelope: LocalPlannerEnvelope = {
     schemaVersion: 2,
     events,
     modifiedAt,
+    resetAt,
   }
 
   return JSON.stringify(envelope)

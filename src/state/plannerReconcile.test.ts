@@ -101,9 +101,11 @@ describe('planner reconciliation edge cases', () => {
     })
     expect(choice.events).toEqual([])
     expect(choice.shouldPush).toBe(false)
-    expect(cacheAfterReset({ ...cached, modifiedAt: 250 }, 200)).toEqual({
-      ...cached, modifiedAt: 250,
+    expect(cacheAfterReset({ ...cached, modifiedAt: 250 }, 200)).toBeNull()
+    expect(cacheAfterReset({ ...cached, resetAt: 200 }, 200)).toEqual({
+      ...cached, resetAt: 200,
     })
+    expect(cacheAfterReset({ ...cached, resetAt: 100, modifiedAt: 300 }, 200)).toBeNull()
   })
   it('uses normalized data on equal timestamps to avoid a redundant push', () => {
     const choice = choosePlannerSource({

@@ -16,7 +16,7 @@ import {
   DEFAULT_PLANNER_PREFERENCES,
   type PlannerPreferences,
 } from '../domain/preferences'
-import { supabase } from '../lib/supabase'
+import { setPlannerResetEpoch, supabase } from '../lib/supabase'
 import {
   loadNormalizedPlanner,
   syncNormalizedPlanner,
@@ -88,12 +88,14 @@ function persistLocal(
   userId: string,
   events: PlannerEvent[],
   modifiedAt: number,
+  resetAt: number,
 ) {
   localStorage.setItem(
     plannerStorageKey(userId),
     serializeLocalPlannerEnvelope(
       events,
       modifiedAt,
+      resetAt,
     ),
   )
 }
@@ -276,6 +278,7 @@ export function usePlanner() {
   const undoStack = useRef<Snapshot[]>([])
   const redoStack = useRef<Snapshot[]>([])
   const modifiedAtRef = useRef(0)
+  const resetAtRef = useRef(0)
   const eventsRef = useRef<PlannerEvent[]>([])
   const cloudUserIdRef = useRef<string | null>(null)
   const realtimeChannelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null)
@@ -299,6 +302,8 @@ export function usePlanner() {
       realtimeChannelRef.current = null
     }
     modifiedAtRef.current = 0
+    resetAtRef.current = 0
+    setPlannerResetEpoch(0)
     eventsRef.current = []
     undoStack.current = []
     redoStack.current = []
@@ -369,6 +374,8 @@ export function usePlanner() {
         // A failed profile read must not turn an old browser cache into the
         // authoritative source after an administrator has reset the data.
         const profile = await loadOwnProfile(user.id)
+        resetAtRef.current = profile?.dataResetAt ?? 0
+        setPlannerResetEpoch(resetAtRef.current)
         const timeZone = profile?.preferences.timezone || browserTimezone || 'UTC'
         const normalized = await loadNormalizedPlanner(user.id, timeZone).catch(() => {
           normalizedReadFailed = true
@@ -456,7 +463,7 @@ export function usePlanner() {
 
         modifiedAtRef.current = nextModifiedAt
         eventsRef.current = nextEvents
-        persistLocal(user.id, nextEvents, nextModifiedAt)
+        persistLocal(user.id, nextEvents, nextModifiedAt, resetAtRef.current)
 
         if (
           shouldPush &&
@@ -651,7 +658,7 @@ export function usePlanner() {
     }
 
     eventsRef.current = events
-    persistLocal(userId, events, modifiedAtRef.current)
+    persistLocal(userId, events, modifiedAtRef.current, resetAtRef.current)
 
     if (skipNextCloudPushRef.current) {
       skipNextCloudPushRef.current = false

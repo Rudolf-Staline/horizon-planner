@@ -39,7 +39,11 @@ export function cacheAfterReset<T extends PlannerCandidate>(
   local: T | null,
   dataResetAt: number,
 ): T | null {
-  return local && local.modifiedAt > dataResetAt ? local : null
+  if (!local) return null
+  if (!dataResetAt) return local
+  return 'resetAt' in local && local.resetAt === dataResetAt
+    ? local
+    : null
 }
 
 export function choosePlannerSource(input: {

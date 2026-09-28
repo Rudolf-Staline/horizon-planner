@@ -50,6 +50,7 @@ describe('planner local storage contract', () => {
       serializeLocalPlannerEnvelope(
         [event],
         1234,
+        200,
       )
     const parsed =
       parseLocalPlannerEnvelope(raw)
@@ -58,6 +59,7 @@ describe('planner local storage contract', () => {
       schemaVersion: 2,
       events: [event],
       modifiedAt: 1234,
+      resetAt: 200,
     })
   })
 
