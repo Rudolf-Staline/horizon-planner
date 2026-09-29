@@ -579,13 +579,24 @@ export function TaskDetailPanel({
                   Number(event.target.value),
                 )}
             >
+              {![15, 30, 45, 60, 90, 120, 135, 150, 165, 180, 195, 210, 225, 240].includes(duration) && (
+                <option value={duration}>
+                  {Math.floor(duration / 60)} h {String(duration % 60).padStart(2, '0')}
+                </option>
+              )}
               <option value={15}>15 min</option>
               <option value={30}>30 min</option>
               <option value={45}>45 min</option>
               <option value={60}>1 h</option>
               <option value={90}>1 h 30</option>
               <option value={120}>2 h</option>
+              <option value={135}>2 h 15</option>
+              <option value={150}>2 h 30</option>
+              <option value={165}>2 h 45</option>
               <option value={180}>3 h</option>
+              <option value={195}>3 h 15</option>
+              <option value={210}>3 h 30</option>
+              <option value={225}>3 h 45</option>
               <option value={240}>4 h</option>
             </select>
           </label>
