@@ -650,9 +650,14 @@ export default function App() {
         <TaskDetailPanel
           event={planner.selected}
           segments={planner.selectedTaskSegments}
+          seriesEvents={planner.events.filter((event) =>
+            planner.selected?.seriesId &&
+            event.seriesId === planner.selected.seriesId,
+          )}
           userId={planner.cloudUserId!}
           onClose={() => planner.setSelectedId(null)}
           onChange={planner.editEvent}
+          onSeriesChange={planner.editSeries}
           onDuplicate={planner.duplicateTask}
           onDeleteSegment={planner.deleteEvent}
           onDeleteTask={planner.deleteTask}

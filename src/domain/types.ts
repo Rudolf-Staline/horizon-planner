@@ -35,6 +35,7 @@ export interface PlannerEvent {
   source?: CalendarEventSource
   externalId?: string
   taskId?: string
+  seriesId?: string
   segmentIndex?: number
   segmentCount?: number
 

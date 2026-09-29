@@ -143,3 +143,11 @@ button { color: inherit; }
 .batch-actions button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:900px){.calendar-toolbar-actions{flex-wrap:wrap;justify-content:flex-end}.batch-trigger{font-size:12px}.batch-dialog{max-height:calc(100dvh - 24px)}}
 @media(max-width:480px){.batch-fields{gap:12px;padding:18px}.batch-head{padding:18px}.batch-weekdays>div{gap:3px}.batch-weekdays button{font-size:10px}.batch-preview{margin:0 18px 18px}.batch-actions{padding:0 18px 18px}}
+
+.series-edit-scope{margin:18px 0;padding:16px;border:1px solid #b8d1c8;background:#f3f8f5;border-radius:12px;display:grid;gap:9px}
+.series-edit-scope legend{padding:0 6px;font-size:12px;font-weight:800;color:#315e56}
+.series-edit-scope label{display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer}
+.series-edit-scope input{accent-color:#315e56}
+.series-edit-scope label:has(input:disabled){opacity:.48;cursor:not-allowed}
+.series-edit-scope small{font-size:11px;color:#617974}
+.series-edit-scope p{margin:4px 0 0;font-size:11px;line-height:1.4;color:#526963}

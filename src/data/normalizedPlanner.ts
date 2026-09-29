@@ -54,7 +54,7 @@ export async function loadNormalizedPlanner(
     supabase
       .from('tasks')
       .select(
-        'id,project_id,title,notes,category,priority,kind,duration_min,locked,status,updated_at',
+        'id,project_id,series_id,title,notes,category,priority,kind,duration_min,locked,status,updated_at',
       )
       .eq('user_id', userId),
     supabase
@@ -159,6 +159,7 @@ export async function loadNormalizedPlanner(
         id: segment.id,
         entityType: 'task',
         taskId: task.id,
+        seriesId: task.series_id ?? undefined,
         segmentIndex:
           segment.segment_index ?? index,
         segmentCount: taskSegments.length,

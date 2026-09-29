@@ -69,6 +69,8 @@ describe('multiple-day quick create', () => {
       () => `task-${++count}`,
     )
     expect(tasks.map((task) => task.taskId)).toEqual(['task-1', 'task-2'])
+    expect(tasks[0].seriesId).toBeTruthy()
+    expect(tasks[1].seriesId).toBe(tasks[0].seriesId)
     expect(tasks.map((task) => task.day)).toEqual([0, 2])
     expect(tasks.every((task) => task.kind === 'fixed' &&
       task.title === 'Réviser EDP' && task.startMin === 840 &&

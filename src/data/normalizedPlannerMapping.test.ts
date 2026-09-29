@@ -256,6 +256,22 @@ describe('normalized planner mapping', () => {
     ).toEqual([])
   })
 
+  it('preserves a task series identifier in normalized rows', () => {
+    const rows = buildNormalizedPlannerRows(
+      'user-1',
+      [taskSegment({
+        taskId: 'task-series',
+        id: 'series-segment',
+        kind: 'fixed',
+        seriesId: 'a1c82a65-32ac-4e68-92e1-0a716e63da22',
+        segmentCount: 1,
+      })],
+      new Map(),
+    )
+    expect(rows.taskRows[0].series_id)
+      .toBe('a1c82a65-32ac-4e68-92e1-0a716e63da22')
+  })
+
   it('marks fixed task ids for stale constraint cleanup', () => {
     const fixedTask =
       taskSegment({

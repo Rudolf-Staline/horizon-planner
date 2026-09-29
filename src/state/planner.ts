@@ -5,6 +5,7 @@ import {
   planFlexibleTask,
 } from '../domain/scheduling'
 import { proposeConflictReplan } from '../domain/replanning'
+import { applySeriesEdit, type SeriesEditScope } from '../domain/seriesEditing'
 import type { SchedulingOptions } from '../domain/scheduling'
 import { currentCloudUser } from '../data/auth'
 import {
@@ -840,7 +841,11 @@ export function usePlanner() {
     const current = events.find((event) => event.id === id)
     if (!current || isReadOnlyCalendarEvent(current)) return
 
-    const metadata = taskMetadataPatch(patch)
+    const nextPatch =
+      current.seriesId && patch.kind && patch.kind !== 'fixed'
+        ? { ...patch, seriesId: undefined }
+        : patch
+    const metadata = taskMetadataPatch(nextPatch)
     const currentTaskId =
       current.entityType === 'task'
         ? logicalTaskId(current)
@@ -848,7 +853,7 @@ export function usePlanner() {
 
     const next = events.map((event) => {
       if (event.id === id) {
-        return { ...event, ...patch }
+        return { ...event, ...nextPatch }
       }
 
       if (
@@ -864,6 +869,27 @@ export function usePlanner() {
 
     commit(next)
     setLastConflictId(null)
+  }
+
+  const editSeries = (
+    id: string,
+    patch: Partial<PlannerEvent>,
+    scope: SeriesEditScope,
+  ) => {
+    const current = events.find((event) => event.id === id)
+    if (!current || isReadOnlyCalendarEvent(current)) return
+    if (!current.seriesId || scope === 'one' || patch.kind !== 'fixed') {
+      editEvent(id, patch)
+      return
+    }
+
+    const next = applySeriesEdit(events, id, patch, scope)
+    commit(next)
+    const conflict = next.find((event) =>
+      event.seriesId === current.seriesId &&
+      conflictsFor(event, next).length > 0,
+    )
+    setLastConflictId(conflict?.id ?? null)
   }
 
   const duplicateTask = (id: string) => {
@@ -1351,6 +1377,7 @@ export function usePlanner() {
     setSelectedId,
     updateEvent,
     editEvent,
+    editSeries,
     duplicateTask,
     replanOverdueTask,
     createEvent,

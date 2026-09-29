@@ -34,10 +34,11 @@ export function buildRepeatedTasks(
   category: PlannerEvent['category'] = 'neutral',
   makeId: () => string = () => crypto.randomUUID(),
 ): PlannerEvent[] {
+  const seriesId = dates.length > 1 ? crypto.randomUUID() : undefined
   return dates.map((date) => {
     const id = makeId()
     return {
-      id, taskId: id, entityType: 'task',
+      id, taskId: id, seriesId, entityType: 'task',
       segmentIndex: 0, segmentCount: 1,
       title: title.trim(), date, day: weekdayIndex(fromISODate(date)),
       startMin, durationMin, category, priority: 'medium', kind: 'fixed',

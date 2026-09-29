@@ -75,6 +75,7 @@ export function buildNormalizedPlannerRows(
         return {
           id: taskId,
           user_id: userId,
+          series_id: primary.seriesId ?? null,
           project_id:
             primary.projectId ??
             null,

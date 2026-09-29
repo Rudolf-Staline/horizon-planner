@@ -32,6 +32,7 @@ import {
   weekdayIndex,
 } from '../utils/date'
 import { formatTime, parseTime } from '../utils/time'
+import type { SeriesEditScope } from '../domain/seriesEditing'
 import {
   listProjects,
   type Project,
@@ -40,11 +41,17 @@ import {
 interface Props {
   event: PlannerEvent
   segments: PlannerEvent[]
+  seriesEvents: PlannerEvent[]
   userId: string
   onClose: () => void
   onChange: (
     id: string,
     patch: Partial<PlannerEvent>,
+  ) => void
+  onSeriesChange: (
+    id: string,
+    patch: Partial<PlannerEvent>,
+    scope: SeriesEditScope,
   ) => void
   onDuplicate: (
     id: string,
@@ -68,9 +75,11 @@ interface Props {
 export function TaskDetailPanel({
   event,
   segments,
+  seriesEvents,
   userId,
   onClose,
   onChange,
+  onSeriesChange,
   onDuplicate,
   onDeleteSegment,
   onDeleteTask,
@@ -138,6 +147,8 @@ export function TaskDetailPanel({
   ] = useState<string | null>(null)
   const [duplicateError, setDuplicateError] =
     useState<string | null>(null)
+  const [seriesScope, setSeriesScope] =
+    useState<SeriesEditScope>('one')
 
   const multiSegment =
     event.entityType === 'task' &&
@@ -211,6 +222,7 @@ export function TaskDetailPanel({
     setReplanError(null)
     setConstraintError(null)
     setDuplicateError(null)
+    setSeriesScope('one')
   }, [event, segments.length, todayDate])
 
   const replan = () => {
@@ -290,7 +302,12 @@ export function TaskDetailPanel({
 
     setConstraintError(null)
 
-    onChange(event.id, {
+    const applyChange =
+      event.seriesId && seriesEvents.length > 1 && kind === 'fixed'
+        ? (patch: Partial<PlannerEvent>) => onSeriesChange(event.id, patch, seriesScope)
+        : (patch: Partial<PlannerEvent>) => onChange(event.id, patch)
+
+    applyChange({
       title: title.trim() || event.title,
       notes: notes.trim() || undefined,
       date,
@@ -869,6 +886,27 @@ export function TaskDetailPanel({
           </span>
         </label>
       </div>
+
+      {!readOnly && event.seriesId && seriesEvents.length > 1 && event.kind === 'fixed' && kind === 'fixed' && (
+        <fieldset className="series-edit-scope">
+          <legend>Appliquer les modifications</legend>
+          {([
+            ['one', 'Ce créneau', 1],
+            ['following', 'Celui-ci et les suivants',
+              seriesEvents.filter((item) => item.date && event.date && item.date >= event.date).length],
+            ['all', 'Toute la série', seriesEvents.length],
+          ] as const).map(([scope, label, count]) => (
+            <label key={scope}>
+              <input type="radio" name="series-edit-scope"
+                checked={seriesScope === scope}
+                onChange={() => setSeriesScope(scope)}
+                disabled={count === 1 && scope !== 'one'}/>
+              <span>{label} <small>({count})</small></span>
+            </label>
+          ))}
+          <p>Un changement de date décale les autres créneaux du même nombre de jours.</p>
+        </fieldset>
+      )}
 
       {!readOnly && <div className="task-detail-actions">
         <div className="task-delete-group">

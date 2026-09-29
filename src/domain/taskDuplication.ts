@@ -123,6 +123,7 @@ export function duplicateTask(
       source: 'manual',
       externalId: undefined,
       taskId,
+      seriesId: undefined,
       segmentIndex: index,
       segmentCount: plan.placements.length,
       date: placement.date ?? firstDate,
