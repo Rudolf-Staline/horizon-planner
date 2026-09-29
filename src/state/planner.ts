@@ -258,6 +258,26 @@ function isRecoveryUrl() {
   )
 }
 
+async function withinTimeout<T>(
+  work: Promise<T>,
+  milliseconds: number,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      work,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Le chargement du planning a expiré.')),
+          milliseconds,
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export function usePlanner() {
   const [events, setEvents] = useState<PlannerEvent[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -357,23 +377,29 @@ export function usePlanner() {
       if (showsPlannerLoading(mode)) {
         setAuthStatus('loading')
       }
-      localStorage.removeItem(LEGACY_STORAGE_KEY)
       setCloudStatus('syncing')
 
       try {
+        localStorage.removeItem(LEGACY_STORAGE_KEY)
         const browserTimezone =
           Intl.DateTimeFormat().resolvedOptions().timeZone
 
         let normalizedReadFailed = false
 
-        const profile = await loadOwnProfile(user.id).catch(() => null)
+        const profile = await withinTimeout(
+          loadOwnProfile(user.id),
+          8_000,
+        ).catch(() => null)
         const timeZone = profile?.preferences.timezone || browserTimezone || 'UTC'
-        const normalized = await loadNormalizedPlanner(user.id, timeZone).catch(() => {
+        const normalized = await withinTimeout(
+          loadNormalizedPlanner(user.id, timeZone),
+          8_000,
+        ).catch(() => {
           normalizedReadFailed = true
           return null
         })
         if (browserTimezone && !profile?.preferences.timezone) {
-          await syncProfileTimezone(user.id, browserTimezone).catch(() => undefined)
+          void syncProfileTimezone(user.id, browserTimezone).catch(() => undefined)
         }
 
         if (
@@ -455,21 +481,6 @@ export function usePlanner() {
         persistLocal(user.id, nextEvents, nextModifiedAt)
 
         if (
-          shouldPush &&
-          !normalizedReadFailed
-        ) {
-          cloudSyncDepthRef.current += 1
-          try {
-            await syncNormalizedPlanner(user.id, nextEvents, timeZone)
-          } finally {
-            cloudSyncDepthRef.current = Math.max(
-              0,
-              cloudSyncDepthRef.current - 1,
-            )
-          }
-        }
-
-        if (
           cancelled ||
           cloudUserIdRef.current !== user.id
         ) {
@@ -481,10 +492,33 @@ export function usePlanner() {
         setCloudStatus(
           normalizedReadFailed
             ? 'error'
-            : 'synced',
+            : shouldPush ? 'syncing' : 'synced',
         )
         if (showsPlannerLoading(mode)) {
           setAuthStatus('authenticated')
+        }
+
+        if (shouldPush && !normalizedReadFailed) {
+          cloudSyncDepthRef.current += 1
+          try {
+            await withinTimeout(
+              syncNormalizedPlanner(user.id, nextEvents, timeZone),
+              8_000,
+            )
+            if (!cancelled && cloudUserIdRef.current === user.id) {
+              setCloudStatus('synced')
+            }
+          } catch (error) {
+            console.error('[planner] Synchronisation initiale impossible', error)
+            if (!cancelled && cloudUserIdRef.current === user.id) {
+              setCloudStatus('error')
+            }
+          } finally {
+            cloudSyncDepthRef.current = Math.max(
+              0,
+              cloudSyncDepthRef.current - 1,
+            )
+          }
         }
 
         if (
@@ -544,17 +578,27 @@ export function usePlanner() {
             .subscribe()
           realtimeChannelRef.current = channel
         }
-      } catch {
-        if (cancelled) return
+      } catch (error) {
+        if (cancelled || cloudUserIdRef.current !== user.id) return
+        console.error('[planner] Chargement du planning impossible', error)
 
-        if (mode === 'background') {
-          setCloudStatus('error')
-          return
+        if (mode !== 'background') {
+          try {
+            const cached = loadLocalSnapshot(user.id)
+            if (cached) {
+              modifiedAtRef.current = cached.modifiedAt
+              eventsRef.current = cached.events
+              skipNextCloudPushRef.current = true
+              setEvents(cached.events)
+            } else {
+              skipNextCloudPushRef.current = true
+            }
+          } catch (cacheError) {
+            console.error('[planner] Cache local indisponible', cacheError)
+          }
+          setAuthStatus('authenticated')
         }
-
-        resetPrivateState(false)
         setCloudStatus('error')
-        setAuthStatus('anonymous')
       }
     }
 
