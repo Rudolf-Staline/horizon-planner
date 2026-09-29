@@ -3,7 +3,7 @@ import {
   expect,
   it,
 } from 'vitest'
-import { buildInlineTask } from './quickCreate'
+import { buildInlineTask, buildRepeatedTasks, repeatedDates } from './quickCreate'
 
 describe('inline calendar quick create', () => {
   it('creates a neutral flexible task without hidden project semantics', () => {
@@ -53,5 +53,25 @@ describe('inline calendar quick create', () => {
     expect(
       event.deadlineDay,
     ).toBe(1)
+  })
+})
+
+describe('multiple-day quick create', () => {
+  it('selects dates across a month boundary and rejects oversized ranges', () => {
+    expect(repeatedDates('2026-09-28', '2026-10-04', [0, 2, 4]))
+      .toEqual(['2026-09-28', '2026-09-30', '2026-10-02'])
+    expect(repeatedDates('2026-09-01', '2026-10-02', [0])).toEqual([])
+  })
+  it('creates independent fixed tasks at the same hour', () => {
+    let count = 0
+    const tasks = buildRepeatedTasks(
+      ['2026-09-28', '2026-09-30'], ' Réviser EDP ', 840, 225, 'focus',
+      () => `task-${++count}`,
+    )
+    expect(tasks.map((task) => task.taskId)).toEqual(['task-1', 'task-2'])
+    expect(tasks.map((task) => task.day)).toEqual([0, 2])
+    expect(tasks.every((task) => task.kind === 'fixed' &&
+      task.title === 'Réviser EDP' && task.startMin === 840 &&
+      task.durationMin === 225 && task.segmentCount === 1)).toBe(true)
   })
 })

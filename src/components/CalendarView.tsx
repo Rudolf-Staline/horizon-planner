@@ -39,6 +39,7 @@ interface Props {
   selectedId: string | null
   draft: InlineTaskDraft | null
   onMode: (mode: CalendarMode) => void
+  onBatchCreate: () => void
   onAnchorDate: (date: string) => void
   onSelect: (id: string | null) => void
   onChange: (
@@ -76,6 +77,7 @@ export function CalendarView({
   selectedId,
   draft,
   onMode,
+  onBatchCreate,
   onAnchorDate,
   onSelect,
   onChange,
@@ -560,7 +562,11 @@ export function CalendarView({
           <h1>{title}</h1>
         </div>
 
-        <div className="view-switch">
+        <div className="calendar-toolbar-actions">
+          <button className="batch-trigger" onClick={onBatchCreate}>
+            <Plus size={16}/> Plusieurs jours
+          </button>
+          <div className="view-switch">
           <button
             onClick={() =>
               onAnchorDate(todayIso)
@@ -582,6 +588,7 @@ export function CalendarView({
               {label}
             </button>
           ))}
+          </div>
         </div>
       </section>
 

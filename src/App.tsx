@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AccountDialog } from './components/AccountDialog'
+import { BatchQuickCreate } from './components/BatchQuickCreate'
 import { AdminView } from './components/AdminView'
 import { AnalyticsView } from './components/AnalyticsView'
 import { AuthGate } from './components/AuthGate'
@@ -67,6 +68,7 @@ export default function App() {
   } | null>(null)
   const [commandOpen, setCommandOpen] =
     useState(false)
+  const [batchOpen, setBatchOpen] = useState(false)
   const [accountOpen, setAccountOpen] =
     useState(false)
   const [routines, setRoutines] =
@@ -452,6 +454,7 @@ export default function App() {
                 planner.selectedId
               }
               onMode={setView}
+              onBatchCreate={() => setBatchOpen(true)}
               onAnchorDate={
                 setAnchorDate
               }
@@ -604,6 +607,17 @@ export default function App() {
           onClose={() =>
             setAccountOpen(false)
           }
+        />
+      )}
+
+      {batchOpen && (
+        <BatchQuickCreate
+          anchorDate={anchorDate}
+          onClose={() => setBatchOpen(false)}
+          onCreate={(created) => {
+            create(created)
+            setBatchOpen(false)
+          }}
         />
       )}
 

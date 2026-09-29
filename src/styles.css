@@ -112,3 +112,34 @@ button { color: inherit; }
 
 .settings-schedule-import{grid-column:1/-1}.edt-import-review{display:grid;gap:12px;border-top:1px solid var(--border);padding-top:14px}.edt-import-review-head{display:flex;justify-content:space-between;align-items:center;gap:14px}.edt-import-review-head>div{display:grid;gap:4px}.edt-import-review-head span{font-size:11px;color:var(--muted)}.edt-import-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:390px;overflow:auto;padding-right:4px}.edt-import-list label{display:flex;align-items:flex-start;gap:9px;min-width:0;padding:10px;border:1px solid var(--border);border-radius:9px;background:#fff;cursor:pointer}.edt-import-list label.selected{border-color:#a9c8ff;background:#f7faff}.edt-import-list input{margin-top:2px;accent-color:var(--blue)}.edt-import-list label>span{display:grid;gap:4px;min-width:0}.edt-import-list strong{font-size:11px;line-height:1.35}.edt-import-list small{font-size:10px;color:var(--muted)}
 @media(max-width:900px){.settings-schedule-import{grid-column:auto}.edt-import-review-head{align-items:stretch;flex-direction:column}.edt-import-review-head .btn{width:100%}.edt-import-list{grid-template-columns:1fr;max-height:340px}}
+
+.calendar-toolbar-actions{display:flex;align-items:center;gap:10px}
+.batch-trigger{display:inline-flex;align-items:center;gap:7px;padding:10px 13px;border:1px solid #b9c6d6;border-radius:10px;background:#fff;color:#233456;font-weight:700;cursor:pointer;white-space:nowrap}
+.batch-trigger:hover{background:#eff5f4;border-color:#5b827e}
+.batch-overlay{position:fixed;inset:0;z-index:100;background:rgba(12,27,44,.38);display:grid;place-items:center;padding:20px}
+.batch-dialog{width:min(540px,100%);max-height:min(90vh,760px);overflow:auto;background:#fafbf8;border:1px solid #bbc9c6;border-radius:19px;box-shadow:0 24px 70px rgba(12,27,44,.26);color:#172c38}
+.batch-head{display:grid;grid-template-columns:42px 1fr 32px;align-items:center;gap:12px;padding:24px 24px 18px;border-bottom:1px solid #dce5df}
+.batch-head>div:nth-child(2)>span{font-size:10px;letter-spacing:.17em;font-weight:800;color:#537b73}
+.batch-head h2{font-size:21px;letter-spacing:-.03em;margin:4px 0 0}
+.batch-icon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#dfebe6;color:#345f58}
+.batch-head>button{border:0;background:transparent;cursor:pointer;color:#556a70}
+.batch-fields{padding:22px 24px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.batch-fields label{display:grid;gap:7px;min-width:0}
+.batch-fields label span,.batch-weekdays legend{font-size:12px;font-weight:700;color:#405962}
+.batch-fields input,.batch-fields select{width:100%;height:42px;padding:0 11px;border:1px solid #cbd7d3;border-radius:9px;background:#fff;color:#172c38;font:inherit}
+.batch-fields input:focus,.batch-fields select:focus{outline:2px solid #9cc5b7;outline-offset:1px}
+.batch-full{grid-column:1/-1}
+.batch-weekdays{border:0;margin:0;padding:0}
+.batch-weekdays legend{padding:0 0 8px}
+.batch-weekdays>div{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.batch-weekdays button{height:35px;border:1px solid #cbd7d3;border-radius:8px;background:#fff;color:#486067;font-size:12px;cursor:pointer}
+.batch-weekdays button.active{background:#315e56;border-color:#315e56;color:#fff}
+.batch-preview{margin:0 24px 20px;padding:13px 15px;border-left:3px solid #bb854c;background:#f7f0e7;display:grid;gap:4px}
+.batch-preview strong{font-size:14px}
+.batch-preview span{font-size:12px;color:#53646a}
+.batch-actions{display:flex;justify-content:flex-end;gap:9px;padding:0 24px 24px}
+.batch-actions button{border-radius:9px;padding:10px 14px;border:1px solid #cbd7d3;background:#fff;color:#172c38;cursor:pointer}
+.batch-actions button:last-child{background:#315e56;color:#fff;border-color:#315e56;font-weight:700}
+.batch-actions button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:900px){.calendar-toolbar-actions{flex-wrap:wrap;justify-content:flex-end}.batch-trigger{font-size:12px}.batch-dialog{max-height:calc(100dvh - 24px)}}
+@media(max-width:480px){.batch-fields{gap:12px;padding:18px}.batch-head{padding:18px}.batch-weekdays>div{gap:3px}.batch-weekdays button{font-size:10px}.batch-preview{margin:0 18px 18px}.batch-actions{padding:0 18px 18px}}
