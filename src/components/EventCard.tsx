@@ -33,6 +33,31 @@ interface Props {
 
 type Gesture = CalendarGestureOrigin
 
+function compactEventTitle(event: PlannerEvent) {
+  const title = event.title.replace(/\s+/g, ' ').trim()
+  if (event.source !== 'manual') return title
+  const prefix = title.match(/^(GRPTD\d+|G\d{1,2}|CPV\d{1,2})/i)?.[1]?.toUpperCase()
+  if (!prefix) return title
+  const rest = title.replace(/^(GRPTD\d+|G\d{1,2}|CPV\d{1,2})\s*[-:–—]?\s*/i, '').trim()
+  if (/^G\d/i.test(prefix)) return `${prefix} · ${rest.split(/[:\-–—]/)[0].trim()}`
+  if (/^GRPTD/i.test(prefix)) {
+    const subject = rest.split(/\s+(?:SI|TP|TD)(?:[-–—]\d+|\d+)\b|\s*[-–—]\s*(?:SI|TP|TD)\d+\b|\s*[-–—]\s*(?:M\.|Mme\.|Dr\.|Pr\.)|\s*[-–—]\s*G\d/i)[0].trim()
+    return `${prefix} · ${subject || rest.split(' ').slice(0, 4).join(' ')}`
+  }
+  if (/^CPV/i.test(prefix)) {
+    const subject = rest.split(/:\s*(?:conception|production|mise)\b|\s+(?:M\.|Mme\.|Dr\.|Pr\.)/i)[0].trim()
+    return `${prefix} · ${subject || rest.split(' ').slice(0, 5).join(' ')}`
+  }
+  return title
+}
+function visualCategory(event: PlannerEvent) {
+  if (event.source !== 'manual') return `category-${event.category}`
+  if (/^CPV\d/i.test(event.title)) return 'category-project'
+  if (/^GRPTD\d/i.test(event.title)) return 'category-focus'
+  if (/^G\d/i.test(event.title)) return 'category-course'
+  return 'category-neutral'
+}
+
 export function EventCard({
   event,
   columnWidth,
@@ -53,6 +78,8 @@ export function EventCard({
   const gestureMoved = useRef(false)
   const suppressClickUntil = useRef(0)
   const live = { ...event, ...(preview ?? {}) }
+  const displayTitle = compactEventTitle(live)
+  const categoryClass = visualCategory(live)
 
   const begin = (
     mode: Gesture['mode'],
@@ -330,7 +357,7 @@ export function EventCard({
       }
       className={[
         'event-card',
-        `category-${live.category}`,
+        categoryClass,
         selected ? 'selected' : '',
         dragging ? 'dragging' : '',
         event.locked ? 'locked' : '',
@@ -370,7 +397,7 @@ export function EventCard({
         : <Move className="event-icon" size={15}/>
       }
 
-      <div className="event-title">{live.title}</div>
+      <div className="event-title" title={live.title}>{displayTitle}</div>
 
       {(live.segmentCount ?? 1) > 1 && (
         <span
