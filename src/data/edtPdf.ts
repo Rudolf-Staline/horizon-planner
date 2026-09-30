@@ -1,3 +1,4 @@
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { PlannerEvent } from '../domain/types'
 import { weekdayIndex, fromISODate } from '../utils/date'
 import {
@@ -189,7 +190,7 @@ function makeCandidate(
 
   const meta = selectionMeta(cleanTitle)
   return {
-    id: eventIdentity(date, startMin, cleanTitle),
+    id: crypto.randomUUID(),
     entityType: 'calendar',
     source: 'manual',
     externalId: `edt:${weekKey}:${eventIdentity(date, startMin, cleanTitle)}`,
@@ -256,7 +257,7 @@ function addCommonSpecialEvents(
 
 export async function parseEtdPdf(file: File, timeZone = 'Africa/Casablanca', now = new Date()): Promise<EtdImportResult> {
   const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  GlobalWorkerOptions.workerSrc = new URL('../../node_modules/pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
+  GlobalWorkerOptions.workerSrc = pdfWorkerUrl
   const data = new Uint8Array(await file.arrayBuffer())
   const document = await getDocument({ data }).promise
   const candidates: EtdCandidate[] = []
@@ -348,7 +349,7 @@ export async function parseEtdPdf(file: File, timeZone = 'Africa/Casablanca', no
     addCommonSpecialEvents(items, dates, timeZone, now, weekKey, candidates)
   }
 
-  const unique = [...new Map(candidates.map((candidate) => [candidate.id, candidate])).values()]
+  const unique = [...new Map(candidates.map((candidate) => [candidate.externalId, candidate])).values()]
     .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startMin - b.startMin || a.title.localeCompare(b.title))
   const weekStart = allDates[0]?.date ?? unique[0]?.date ?? zonedDateToIso(now, timeZone)
   return {

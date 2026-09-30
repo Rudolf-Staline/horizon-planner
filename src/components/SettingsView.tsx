@@ -52,6 +52,9 @@ export function SettingsView({ userId, preferences, events, onSaved, onImportEve
   const [edtWeekLabel, setEdtWeekLabel] = useState('')
   const [edtWeekKey, setEdtWeekKey] = useState('')
   const [edtFileName, setEdtFileName] = useState('')
+  const [edtReading, setEdtReading] = useState(false)
+  const [edtError, setEdtError] = useState<string | null>(null)
+  const [edtNotice, setEdtNotice] = useState<string | null>(null)
 
   useEffect(() => setDraft(preferences), [preferences])
   useEffect(() => { void listCalendarSources(userId).then(setSources).catch(() => setSources([])) }, [userId])
@@ -103,6 +106,11 @@ export function SettingsView({ userId, preferences, events, onSaved, onImportEve
 
   const importEtd = async (file: File) => {
     setBusy(true)
+    setEdtReading(true)
+    setEdtError(null)
+    setEdtNotice(null)
+    setEdtCandidates([])
+    setEdtFileName(file.name)
     setError(null)
     setNotice(null)
     try {
@@ -116,9 +124,10 @@ export function SettingsView({ userId, preferences, events, onSaved, onImportEve
       setEdtWeekKey(parsed.weekStart)
       setEdtFileName(file.name)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Impossible de lire l’emploi du temps PDF.')
+      setEdtError(cause instanceof Error ? cause.message : 'Impossible de lire l’emploi du temps PDF.')
     } finally {
       setBusy(false)
+      setEdtReading(false)
     }
   }
 
@@ -129,11 +138,12 @@ export function SettingsView({ userId, preferences, events, onSaved, onImportEve
   const confirmEtdImport = () => {
     const selected = edtCandidates.filter((candidate) => candidate.defaultSelected)
     if (selected.length === 0) {
-      setError('Sélectionnez au moins un créneau à importer.')
+      setEdtError('Sélectionnez au moins un créneau à importer.')
       return
     }
     onImportEvents(selected, edtWeekKey)
-    setNotice(`${selected.length} créneau(x) d’emploi du temps ajouté(s) au planning.`)
+    setEdtError(null)
+    setEdtNotice(`${selected.length} créneau(x) d’emploi du temps ajouté(s) au planning.`)
     setEdtCandidates([])
     setEdtFileName('')
   }
@@ -217,7 +227,10 @@ export function SettingsView({ userId, preferences, events, onSaved, onImportEve
 
         <article className="settings-card settings-schedule-import">
           <div className="settings-card-head"><Upload size={18}/><div><h2>Importer un emploi du temps</h2><p>Ajoutez manuellement le PDF hebdomadaire. Seuls les créneaux dont le début n’est pas encore passé sont proposés.</p></div></div>
-          <label className="file-drop"><Upload size={18}/><span>{edtFileName || 'Choisir le PDF de la semaine'}</span><input type="file" accept="application/pdf,.pdf" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importEtd(file); e.currentTarget.value = '' }}/></label>
+          <label className="file-drop"><Upload size={18}/><span>{edtReading ? 'Lecture du PDF en cours…' : edtFileName || 'Choisir le PDF de la semaine'}</span><input type="file" accept="application/pdf,.pdf" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importEtd(file); e.currentTarget.value = '' }}/></label>
+          {edtReading && <p className="settings-notice" role="status">Lecture du PDF en cours…</p>}
+          {edtError && <p className="planning-error" role="alert">{edtError}</p>}
+          {edtNotice && <p className="settings-notice" role="status">{edtNotice}</p>}
           {edtCandidates.length > 0 && <div className="edt-import-review">
             <div className="edt-import-review-head"><div><strong>Créneaux détectés</strong><span>{edtWeekLabel} · cochez uniquement votre groupe</span></div><button type="button" className="btn primary" onClick={confirmEtdImport}>Ajouter {edtCandidates.filter((candidate) => candidate.defaultSelected).length}</button></div>
             <div className="edt-import-list">{edtCandidates.map((candidate) => <label key={candidate.id} className={candidate.defaultSelected ? 'selected' : ''}><input type="checkbox" checked={candidate.defaultSelected} onChange={() => toggleEdtCandidate(candidate.id)}/><span><strong>{candidate.title}</strong><small>{candidate.date} · {String(Math.floor(candidate.startMin / 60)).padStart(2, '0')}:{String(candidate.startMin % 60).padStart(2, '0')}–{String(Math.floor((candidate.startMin + candidate.durationMin) / 60)).padStart(2, '0')}:{String((candidate.startMin + candidate.durationMin) % 60).padStart(2, '0')} · {candidate.selectionLabel}</small></span></label>)}</div>

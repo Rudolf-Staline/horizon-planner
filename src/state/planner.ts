@@ -1205,7 +1205,7 @@ export function usePlanner() {
     if (authStatus !== 'authenticated' || imported.length === 0) return
 
     const prefix = `edt:${weekKey}:`
-    const importedIds = new Set(imported.map((event) => event.id))
+    const importedKeys = new Set(imported.map((event) => event.externalId ?? event.id))
     const now = new Date()
     const todayDate = zonedDateToIso(now, cloudPreferences.timezone)
     const currentMinutes = zonedDateMinutes(now, cloudPreferences.timezone)
@@ -1220,10 +1220,10 @@ export function usePlanner() {
         const alreadyStarted =
           (event.date ?? '') < todayDate ||
           (event.date === todayDate && event.startMin < currentMinutes)
-        return importedIds.has(event.id) || alreadyStarted
+        return importedKeys.has(event.externalId ?? event.id) || alreadyStarted
       }),
       ...imported.filter(
-        (event) => !events.some((current) => current.id === event.id),
+        (event) => !events.some((current) => current.id === event.id || (event.externalId && current.externalId === event.externalId)),
       ),
     ]
 
