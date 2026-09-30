@@ -30,6 +30,7 @@ import {
 } from './utils/date'
 import {
   localDateTimeToIso,
+  zonedDateMinutes,
   zonedDateToIso,
 } from './utils/timezone'
 import {
@@ -515,6 +516,7 @@ export default function App() {
               events={planner.events}
               defaultDurationMin={planner.cloudPreferences.defaultDurationMin}
               todayDate={zonedDateToIso(new Date(), planner.cloudPreferences.timezone)}
+              currentMinutes={zonedDateMinutes(new Date(), planner.cloudPreferences.timezone)}
               onToggleTask={planner.toggleTaskCompleted}
               onSelect={planner.setSelectedId}
               onCreateScheduled={(event) => {

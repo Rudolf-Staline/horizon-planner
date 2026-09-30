@@ -17,13 +17,14 @@ import {
   DEFAULT_PLANNER_PREFERENCES,
   type PlannerPreferences,
 } from '../domain/preferences'
-import { supabase } from '../lib/supabase'
+import { setPlannerResetEpoch, supabase } from '../lib/supabase'
 import {
   loadNormalizedPlanner,
   syncNormalizedPlanner,
 } from '../data/normalizedPlanner'
 import {
   choosePlannerSource,
+  cacheAfterReset,
   plannerReconcileMode,
   showsPlannerLoading,
   type PlannerReconcileMode,
@@ -88,12 +89,14 @@ function persistLocal(
   userId: string,
   events: PlannerEvent[],
   modifiedAt: number,
+  resetAt: number,
 ) {
   localStorage.setItem(
     plannerStorageKey(userId),
     serializeLocalPlannerEnvelope(
       events,
       modifiedAt,
+      resetAt,
     ),
   )
 }
@@ -296,6 +299,7 @@ export function usePlanner() {
   const undoStack = useRef<Snapshot[]>([])
   const redoStack = useRef<Snapshot[]>([])
   const modifiedAtRef = useRef(0)
+  const resetEpochRef = useRef<number | null>(null)
   const eventsRef = useRef<PlannerEvent[]>([])
   const cloudUserIdRef = useRef<string | null>(null)
   const realtimeChannelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null)
@@ -314,6 +318,8 @@ export function usePlanner() {
     }
 
     cloudUserIdRef.current = null
+    resetEpochRef.current = null
+    setPlannerResetEpoch(0)
     if (realtimeChannelRef.current && supabase) {
       void supabase.removeChannel(realtimeChannelRef.current)
       realtimeChannelRef.current = null
@@ -366,6 +372,9 @@ export function usePlanner() {
         return
       }
 
+      if (cloudUserIdRef.current && cloudUserIdRef.current !== user.id) {
+        resetPrivateState(false)
+      }
       cloudUserIdRef.current = user.id
       setCloudUserId(user.id)
       setCloudUserEmail(user.email ?? null)
@@ -390,7 +399,17 @@ export function usePlanner() {
         const profile = await withinTimeout(
           loadOwnProfile(user.id),
           8_000,
-        ).catch(() => null)
+        )
+        if (cancelled || cloudUserIdRef.current !== user.id) return
+        if (!profile || !Number.isFinite(profile.dataResetAt)) {
+          throw new Error('Le marqueur de réinitialisation du profil est indisponible.')
+        }
+        if (resetEpochRef.current !== profile.dataResetAt) {
+          undoStack.current = []
+          redoStack.current = []
+        }
+        resetEpochRef.current = profile.dataResetAt
+        setPlannerResetEpoch(profile.dataResetAt)
         const timeZone = profile?.preferences.timezone || browserTimezone || 'UTC'
         const normalized = await withinTimeout(
           loadNormalizedPlanner(user.id, timeZone),
@@ -422,7 +441,16 @@ export function usePlanner() {
           timezone: browserTimezone || DEFAULT_PLANNER_PREFERENCES.timezone,
         })
 
-        const local = loadLocalSnapshot(user.id)
+        const cached = loadLocalSnapshot(user.id)
+        const local = cacheAfterReset(cached, profile.dataResetAt)
+        if (cached && !local) {
+          // Keep rejected data recoverable without allowing it to repopulate
+          // the server after a reset. Include its version to avoid overwrites.
+          localStorage.setItem(
+            `${plannerStorageKey(user.id)}:reset-backup:${cached.modifiedAt}`,
+            JSON.stringify(cached),
+          )
+        }
 
         const choice = choosePlannerSource({
           normalized,
@@ -479,7 +507,7 @@ export function usePlanner() {
 
         modifiedAtRef.current = nextModifiedAt
         eventsRef.current = nextEvents
-        persistLocal(user.id, nextEvents, nextModifiedAt)
+        persistLocal(user.id, nextEvents, nextModifiedAt, profile.dataResetAt)
 
         if (
           cancelled ||
@@ -585,7 +613,9 @@ export function usePlanner() {
 
         if (mode !== 'background') {
           try {
-            const cached = loadLocalSnapshot(user.id)
+            const cached = resetEpochRef.current === null
+              ? null
+              : cacheAfterReset(loadLocalSnapshot(user.id), resetEpochRef.current)
             if (cached) {
               modifiedAtRef.current = cached.modifiedAt
               eventsRef.current = cached.events
@@ -597,7 +627,7 @@ export function usePlanner() {
           } catch (cacheError) {
             console.error('[planner] Cache local indisponible', cacheError)
           }
-          setAuthStatus('authenticated')
+          setAuthStatus(resetEpochRef.current === null ? 'anonymous' : 'authenticated')
         }
         setCloudStatus('error')
       }
@@ -696,12 +726,13 @@ export function usePlanner() {
   useEffect(() => {
     const userId = cloudUserIdRef.current
 
-    if (authStatus !== 'authenticated' || !userId) {
+    if (authStatus !== 'authenticated' || !userId || resetEpochRef.current === null) {
       return
     }
 
     eventsRef.current = events
-    persistLocal(userId, events, modifiedAtRef.current)
+    const resetAt = resetEpochRef.current
+    persistLocal(userId, events, modifiedAtRef.current, resetAt)
 
     if (skipNextCloudPushRef.current) {
       skipNextCloudPushRef.current = false
@@ -709,6 +740,7 @@ export function usePlanner() {
     }
 
     const timer = window.setTimeout(async () => {
+      if (cloudUserIdRef.current !== userId || resetEpochRef.current !== resetAt) return
       setCloudStatus('syncing')
       cloudSyncDepthRef.current += 1
 
