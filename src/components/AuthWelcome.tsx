@@ -7,7 +7,7 @@ export function AuthWelcome() {
       <div className="auth-welcome-copy">
         <span className="section-kicker">UN PEU PLUS DE CLARTÉ</span>
         <h2>Du temps pour<br/>ce qui compte.</h2>
-        <p>Vos cours, vos projets et vos moments de concentration, réunis dans un planning.</p>
+        <p>Un planning pour avancer, un journal pour prendre du recul. Vos journées, vos projets et vos idées, réunis dans Horizon.</p>
       </div>
       <div className="auth-week-art" aria-hidden="true">
         <div className="auth-week-title"><span>Une semaine à votre rythme</span><span>◦ ◦ ◦</span></div>
@@ -20,7 +20,7 @@ export function AuthWelcome() {
           <i className="auth-week-line"/>
         </div>
       </div>
-      <p className="auth-welcome-foot">Planifier. Se concentrer. Avancer.</p>
+      <p className="auth-welcome-foot">Planifier. Écrire. Avancer.</p>
     </aside>
   )
 }

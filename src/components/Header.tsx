@@ -7,7 +7,7 @@ import { Brand } from './Brand'
 const sectionLabels: Record<Section, string> = {
   calendar: 'Calendrier', tasks: 'Tâches', projects: 'Projets',
   routines: 'Routines', focus: 'Focus', analytics: 'Analyses',
-  settings: 'Paramètres', admin: 'Administration',
+  journal: 'Journal', settings: 'Paramètres', admin: 'Administration',
 }
 
 interface Props {
