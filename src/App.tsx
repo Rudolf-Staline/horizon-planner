@@ -386,6 +386,7 @@ export default function App() {
   return (
     <div className="app">
       <Header
+        section={section}
         view={
           section === 'focus'
             ? 'now'

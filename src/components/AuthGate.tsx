@@ -15,6 +15,8 @@ import {
   updatePassword,
 } from '../data/auth'
 import { supabaseConfigured } from '../lib/supabase'
+import { AuthWelcome } from './AuthWelcome'
+import { Brand } from './Brand'
 
 type Mode = 'login' | 'signup' | 'forgot'
 
@@ -284,9 +286,10 @@ export function AuthGate({ status }: Props) {
   }
 
   return (
-    <main className="auth-gate">
+    <main className="auth-gate auth-entry">
+      <AuthWelcome/>
       <section className="auth-card auth-card-wide">
-        <div className="auth-brand">Horizon</div>
+        <Brand className="auth-brand"/>
 
         <div className="auth-lock">
           {mode === 'signup'

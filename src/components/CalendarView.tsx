@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import {
   PX_PER_MIN,
@@ -104,6 +104,18 @@ export function CalendarView({
   const height = (endMin - startMin) * PX_PER_MIN
   const [viewportWidth, setViewportWidth] =
     useState(() => window.innerWidth)
+  const shellRef = useRef<HTMLElement>(null)
+  const [availableWidth, setAvailableWidth] = useState(0)
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell) return
+    const observer = new ResizeObserver(([entry]) => {
+      setAvailableWidth(entry.contentRect.width)
+    })
+    observer.observe(shell)
+    return () => observer.disconnect()
+  }, [])
   const [hoverSlot, setHoverSlot] =
     useState<{
       date: string
@@ -157,13 +169,13 @@ export function CalendarView({
     const columnWidth =
       mode === 'day'
         ? Math.max(
-            280,
+            160,
             Math.min(
-              760,
-              viewportWidth - 94,
+              960,
+              (availableWidth || viewportWidth - 32) - 56,
             ),
           )
-        : 154
+        : Math.max(128, Math.min(170, Math.floor(((availableWidth || viewportWidth - 32) - 56) / 7)))
     const gridWidth = columnWidth * dates.length
 
     const visibleEvents = dates.flatMap(
@@ -180,6 +192,7 @@ export function CalendarView({
       <>
         <section
           className={`week-grid-wrap ${mode === 'day' ? 'day-grid-wrap' : ''}`}
+          style={{ width: gridWidth + 56 }}
         >
           <div className="day-head-spacer"/>
           <div
@@ -395,6 +408,7 @@ export function CalendarView({
 
             <button
               className="floating-add"
+              aria-label="Ajouter un créneau"
               onClick={(event) => {
                 event.stopPropagation()
                 const date =
@@ -426,8 +440,8 @@ export function CalendarView({
           <span><i className="dot neutral"/>Autre</span>
         </div>
         <p className="hint">
-          Clique un créneau pour créer directement. Glisse une carte pour
-          la déplacer. Tire sa poignée basse pour changer la durée.
+          Cliquez sur un créneau pour l’ajouter. Glissez une carte pour
+          la déplacer, ou sa poignée basse pour ajuster sa durée.
         </p>
       </>
     )
@@ -542,7 +556,7 @@ export function CalendarView({
   )
 
   return (
-    <main className="calendar-shell">
+    <main className="calendar-shell" ref={shellRef}>
       <section className="calendar-toolbar">
         <div className="date-control">
           <button
@@ -563,17 +577,13 @@ export function CalendarView({
         </div>
 
         <div className="calendar-toolbar-actions">
+          <button className="calendar-today btn secondary" onClick={() => onAnchorDate(todayIso)}>
+            Aujourd’hui
+          </button>
           <button className="batch-trigger" onClick={onBatchCreate}>
             <Plus size={16}/> Plusieurs jours
           </button>
-          <div className="view-switch">
-          <button
-            onClick={() =>
-              onAnchorDate(todayIso)
-            }
-          >
-            Aujourd’hui
-          </button>
+          <div className="view-switch" role="group" aria-label="Période affichée">
           {([
             ['day', 'Jour'],
             ['week', 'Semaine'],
@@ -583,6 +593,7 @@ export function CalendarView({
             <button
               key={value}
               className={mode === value ? 'selected' : ''}
+              aria-pressed={mode === value}
               onClick={() => onMode(value)}
             >
               {label}

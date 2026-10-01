@@ -8,6 +8,7 @@ import {
   Settings,
   Target,
 } from 'lucide-react'
+import { Brand } from './Brand'
 
 export type Section =
   | 'calendar'
@@ -59,6 +60,7 @@ export function Sidebar({
       className={`nav-item ${active === value ? 'active' : ''}`}
       key={value}
       onClick={() => onNavigate(value)}
+      aria-current={active === value ? 'page' : undefined}
     >
       <Icon size={19} strokeWidth={2}/>
       <span>{label}</span>
@@ -73,14 +75,16 @@ export function Sidebar({
   return (
     <>
     <aside className="sidebar">
-      <div className="brand">Horizon</div>
+      <Brand className="brand"/>
 
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" aria-label="Navigation principale">
+        <span className="nav-group-label">ORGANISER</span>
         {mainItems.map(([value, label, Icon]) =>
           renderItem(value, label, Icon)
         )}
 
         <div className="sidebar-separator"/>
+        <span className="nav-group-label">PRENDRE DU RECUL</span>
 
         {secondaryItems.map(([value, label, Icon]) =>
           renderItem(value, label, Icon)
@@ -117,6 +121,7 @@ export function Sidebar({
         ([value, label, Icon]) => (
           <button
             key={value}
+            aria-current={active === value ? 'page' : undefined}
             className={
               active === value
                 ? 'mobile-nav-item active'
@@ -136,6 +141,7 @@ export function Sidebar({
 
       {isAdmin && (
         <button
+          aria-current={active === 'admin' ? 'page' : undefined}
           className={
             active === 'admin'
               ? 'mobile-nav-item active'
