@@ -84,3 +84,65 @@ for (const width of [1440, 390, 320])
       )
       .toBe(true)
   })
+
+test('writing mode keeps the draft and supports keyboard saving', async ({
+  page,
+}) => {
+  await page.goto('/tests/harness/journal.html')
+  await page.getByLabel('Votre texte').fill('Un texte qui traverse les modes.')
+  await page.getByRole('button', { name: 'Mode écriture', exact: true }).click()
+  await expect(page.getByLabel('Historique du journal')).toBeHidden()
+  await expect(page.getByLabel('Votre texte')).toBeFocused()
+  await page.keyboard.press('Control+s')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Entrée enregistrée.' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByLabel('Historique du journal')).toBeVisible()
+  await expect(
+    page.locator('.journal-entry', {
+      hasText: 'Un texte qui traverse les modes.',
+    }),
+  ).toBeVisible()
+})
+
+test('changing an entry protects unsaved writing in a keyboard accessible dialog', async ({
+  page,
+}) => {
+  await page.goto('/tests/harness/journal.html')
+  await page.getByLabel('Votre texte').fill('Un brouillon à conserver.')
+  await page
+    .locator('.journal-entry', { hasText: 'Retrouver mon rythme' })
+    .click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Continuer à écrire' }),
+  ).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.getByLabel('Votre texte')).toHaveValue(
+    'Un brouillon à conserver.',
+  )
+  await page
+    .getByRole('button', { name: 'Nouvelle entrée', exact: true })
+    .click()
+  await page
+    .getByRole('button', { name: 'Abandonner les modifications' })
+    .click()
+  await expect(page.getByLabel('Votre texte')).toHaveValue('')
+})
+
+test('history can be retried without losing the draft', async ({ page }) => {
+  await page.goto('/tests/harness/journal.html?historyFail=1')
+  await expect(page.getByRole('alert')).toContainText('historique')
+  await page
+    .getByLabel('Votre texte')
+    .fill('Toujours là pendant la reconnexion.')
+  await page.getByRole('button', { name: 'Réessayer', exact: true }).click()
+  await expect(
+    page.locator('.journal-entry', { hasText: 'Retrouver mon rythme' }),
+  ).toBeVisible()
+  await expect(page.getByLabel('Votre texte')).toHaveValue(
+    'Toujours là pendant la reconnexion.',
+  )
+})

@@ -61,6 +61,7 @@ export function Sidebar({
   ) => (
     <button
       className={`nav-item ${active === value ? 'active' : ''}`}
+      data-section={value}
       key={value}
       onClick={() => onNavigate(value)}
       aria-current={active === value ? 'page' : undefined}
@@ -123,7 +124,8 @@ export function Sidebar({
       {mobileItems.map(
         ([value, label, Icon]) => (
           <button
-            key={value}
+            data-section={value}
+      key={value}
             aria-current={active === value ? 'page' : undefined}
             className={
               active === value

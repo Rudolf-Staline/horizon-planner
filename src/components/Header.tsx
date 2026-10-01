@@ -36,7 +36,7 @@ export function Header({
       : cloudStatus === 'error' ? 'Erreur de synchronisation' : 'Mode local'
 
   return (
-    <header className="topbar">
+    <header className={`topbar ${section === 'journal' ? 'journal-topbar' : ''}`}>
       <div className="topbar-context">
         <span>ESPACE PERSONNEL</span>
         <strong>{sectionLabels[section]}</strong>

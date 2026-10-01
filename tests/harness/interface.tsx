@@ -12,6 +12,7 @@ import { DEFAULT_PLANNER_PREFERENCES } from '../../src/domain/preferences'
 import type { PlannerEvent } from '../../src/domain/types'
 import '../../src/styles.css'
 import '../../src/styles/interface.css'
+import '../../src/styles/journal.css'
 
 // Synthetic, isolated data: this harness never connects to an account.
 const sampleEvents: PlannerEvent[] = [
