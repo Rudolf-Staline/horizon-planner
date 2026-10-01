@@ -6,6 +6,7 @@ import { Sidebar, type Section } from '../../src/components/Sidebar'
 import type { JournalEntry, JournalRepository } from '../../src/data/journal'
 import '../../src/styles.css'
 import '../../src/styles/interface.css'
+import '../../src/styles/journal.css'
 let entries: JournalEntry[] = [
   {
     id: '00000000-0000-4000-8000-000000000001',
@@ -19,9 +20,34 @@ let entries: JournalEntry[] = [
     updated_at: '2026-10-01T10:00:00Z',
   },
 ]
+entries.push(
+  {
+    ...entries[0],
+    id: '00000000-0000-4000-8000-000000000002',
+    title: 'Un projet prend forme',
+    content:
+      'J’ai enfin trouvé comment aborder la prochaine étape. Mettre mes idées sur papier m’a aidé à voir ce qui était encore flou.',
+    entry_date: '2026-09-30',
+    mood: 5,
+  },
+  {
+    ...entries[0],
+    id: '00000000-0000-4000-8000-000000000003',
+    title: 'Ralentir un peu',
+    content:
+      'Une journée moins chargée. J’ai laissé de la place à une conversation et à quelques pages de lecture.',
+    entry_date: '2026-09-28',
+    mood: 3,
+  },
+)
 let fail = new URLSearchParams(location.search).has('fail')
+let historyFail = new URLSearchParams(location.search).has('historyFail')
 const repository: JournalRepository = {
   async list(_userId, archived, offset) {
+    if (historyFail) {
+      historyFail = false
+      throw new Error('History unavailable')
+    }
     return entries
       .filter((e) => e.archived === archived)
       .sort((a, b) => b.entry_date.localeCompare(a.entry_date))

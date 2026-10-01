@@ -1,5 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
-import { Archive, BookOpen, Plus, Save } from 'lucide-react'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import {
+  Archive,
+  ArrowUpRight,
+  BookOpen,
+  Check,
+  ChevronLeft,
+  ChevronDown,
+  Maximize2,
+  Minimize2,
+  Plus,
+  RotateCcw,
+  Save,
+} from 'lucide-react'
 import {
   journalRepository,
   type JournalDraft,
@@ -9,7 +21,30 @@ import {
 import { zonedDateToIso } from '../utils/timezone'
 
 const moods = ['Très difficile', 'Difficile', 'Neutre', 'Bien', 'Très bien']
-const faces = ['😞', '🙁', '😐', '🙂', '😊']
+const mouths = [
+  'M7 17 Q12 9 17 17',
+  'M8 16 Q12 12 16 16',
+  'M8 15 H16',
+  'M8 14 Q12 18 16 14',
+  'M7 13 Q12 22 17 13 Z',
+]
+function MoodMark({ value }: { value: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 9h.01M16 9h.01" strokeWidth="3" />
+      <path d={mouths[value - 1]} />
+    </svg>
+  )
+}
 function blank(timeZone: string): JournalDraft {
   return {
     id: crypto.randomUUID(),
@@ -24,9 +59,11 @@ function draftOf(entry: JournalEntry): JournalDraft {
   const { id, entry_date, title, content, mood, archived } = entry
   return { id, entry_date, title, content, mood, archived }
 }
-function formatDate(date: string) {
+function dateLabel(date: string, monthOnly = false) {
   return new Intl.DateTimeFormat('fr-FR', {
-    dateStyle: 'long',
+    ...(monthOnly
+      ? { month: 'long' as const, year: 'numeric' as const }
+      : { dateStyle: 'long' as const }),
     timeZone: 'UTC',
   }).format(new Date(`${date}T12:00:00Z`))
 }
@@ -50,11 +87,34 @@ export function JournalView({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [historyError, setHistoryError] = useState('')
   const [message, setMessage] = useState('')
+  const [focused, setFocused] = useState(false)
+  const [showMood, setShowMood] = useState(
+    () => !window.matchMedia('(max-width: 600px)').matches,
+  )
+  const [retry, setRetry] = useState(0)
+  // Undefined means no dialog; null requests a new blank entry.
+  const [pendingEntry, setPendingEntry] = useState<
+    JournalEntry | null | undefined
+  >()
   const generation = useRef(0)
+  const formRef = useRef<HTMLFormElement>(null)
+  const textRef = useRef<HTMLTextAreaElement>(null)
+  const modeRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
   const dirty = original
     ? JSON.stringify(draft) !== JSON.stringify(draftOf(original))
     : Boolean(draft.title || draft.content || draft.mood)
+  const canSave =
+    !saving &&
+    !draft.archived &&
+    Boolean(draft.content.trim()) &&
+    (dirty || !original)
+  const wordCount = draft.content.trim()
+    ? draft.content.trim().split(/\s+/).length
+    : 0
+
   useEffect(() => {
     if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => {
@@ -65,10 +125,35 @@ export function JournalView({
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
   useEffect(() => {
+    if (!active) return
+    const key = (event: KeyboardEvent) => {
+      if (pendingEntry !== undefined) return
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        if (canSave) formRef.current?.requestSubmit()
+      }
+      if (event.key === 'Escape' && focused) {
+        setFocused(false)
+        modeRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [active, canSave, focused, pendingEntry])
+  useEffect(() => {
+    if (focused && active) textRef.current?.focus({ preventScroll: true })
+  }, [focused, active])
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (pendingEntry !== undefined && active) dialog?.showModal()
+    else dialog?.close()
+    return () => dialog?.close()
+  }, [pendingEntry, active])
+  useEffect(() => {
     const request = ++generation.current
     if (!active) return
     setLoading(true)
-    setError('')
+    setHistoryError('')
     setEntries([])
     setMore(false)
     repository
@@ -81,9 +166,7 @@ export function JournalView({
       })
       .catch(() => {
         if (request === generation.current)
-          setError(
-            'L’historique ne peut pas être chargé. Réessayez en ouvrant à nouveau le journal.',
-          )
+          setHistoryError('Votre historique n’a pas pu être chargé.')
       })
       .finally(() => {
         if (request === generation.current) setLoading(false)
@@ -91,20 +174,21 @@ export function JournalView({
     return () => {
       generation.current++
     }
-  }, [userId, archives, repository, active])
-  function open(entry: JournalEntry | null) {
-    if (
-      saving ||
-      (dirty &&
-        !window.confirm('Abandonner les modifications non enregistrées ?'))
-    )
-      return
+  }, [userId, archives, repository, active, retry])
+
+  function selectEntry(entry: JournalEntry | null) {
     setOriginal(entry)
     setDraft(entry ? draftOf(entry) : blank(timeZone))
     setError('')
     setMessage('')
   }
+  function open(entry: JournalEntry | null) {
+    if (saving || (entry && original?.id === entry.id)) return
+    if (dirty) setPendingEntry(entry)
+    else selectEntry(entry)
+  }
   async function save(archived = draft.archived) {
+    if (saving) return
     setSaving(true)
     setError('')
     setMessage('')
@@ -123,7 +207,6 @@ export function JournalView({
             ? 'Entrée restaurée.'
             : 'Entrée enregistrée.',
       )
-      // Reset pagination after an edit that changes the ordering or archive state.
       try {
         const request = ++generation.current
         setLoading(false)
@@ -131,10 +214,11 @@ export function JournalView({
         if (request === generation.current) {
           setEntries(rows)
           setMore(rows.length === 30)
+          setHistoryError('')
         }
       } catch {
-        setError(
-          'L’entrée est enregistrée, mais l’historique n’a pas pu être actualisé. Rouvrez le journal pour réessayer.',
+        setHistoryError(
+          'L’entrée est enregistrée. L’historique n’a pas pu être actualisé.',
         )
       }
     } catch (reason) {
@@ -150,7 +234,7 @@ export function JournalView({
   async function loadMore() {
     const request = generation.current
     setLoading(true)
-    setError('')
+    setHistoryError('')
     try {
       const rows = await repository.list(userId, archives, entries.length)
       if (request === generation.current) {
@@ -159,7 +243,7 @@ export function JournalView({
       }
     } catch {
       if (request === generation.current)
-        setError('Impossible de charger la suite de l’historique. Réessayez.')
+        setHistoryError('La suite de l’historique n’a pas pu être chargée.')
     } finally {
       if (request === generation.current) setLoading(false)
     }
@@ -168,24 +252,40 @@ export function JournalView({
     setDraft((current) => ({ ...current, ...value }))
     setMessage('')
   }
+
   return (
-    <main className="collection-page journal-page" hidden={!active}>
-      <header className="section-header">
+    <main
+      className={`collection-page journal-page ${focused ? 'is-focused' : ''}`}
+      hidden={!active}
+    >
+      <header className="section-header journal-heading">
         <div>
-          <span className="section-kicker">PRENDRE DU RECUL</span>
-          <h1>Mon journal</h1>
-          <p>
-            Un espace pour raconter vos journées, poser vos idées et garder une
-            trace.
-          </p>
+          <span className="section-kicker">LE FIL DES JOURS</span>
+          <h1>
+            Mon journal<span aria-hidden="true">.</span>
+          </h1>
+          <p>Gardez une trace de ce qui compte pour vous.</p>
         </div>
-        <button
-          className="btn primary"
-          onClick={() => open(null)}
-          disabled={saving}
-        >
-          <Plus size={17} /> Nouvelle entrée
-        </button>
+        <div className="journal-heading-actions">
+          <button
+            ref={modeRef}
+            className="journal-mode"
+            aria-pressed={focused}
+            aria-label={focused ? 'Quitter le mode écriture' : 'Mode écriture'}
+            onClick={() => setFocused((current) => !current)}
+          >
+            {focused ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            <span>{focused ? 'Revenir au journal' : 'Mode écriture'}</span>
+          </button>
+          <button
+            className="btn primary"
+            onClick={() => open(null)}
+            disabled={saving}
+          >
+            <Plus size={17} />
+            <span>Nouvelle entrée</span>
+          </button>
+        </div>
       </header>
       <div className="journal-layout">
         <section
@@ -193,128 +293,189 @@ export function JournalView({
           aria-label="Écrire dans mon journal"
         >
           <div className="journal-editor-top">
-            <span>
-              <BookOpen size={18} />{' '}
-              {original ? 'Votre entrée' : 'Une page pour vous'}
+            <span className="journal-folio">
+              <BookOpen size={15} />
+              {original ? 'Une page de votre histoire' : 'UNE NOUVELLE PAGE'}
             </span>
-            <span className="journal-status">
-              {dirty
-                ? 'À enregistrer'
-                : original
-                  ? 'Enregistrée'
-                  : 'Nouvelle entrée'}
+            <span
+              className={`journal-status ${dirty ? 'is-dirty' : ''} ${draft.archived ? 'is-archived' : ''}`}
+            >
+              {saving ? (
+                'Enregistrement…'
+              ) : draft.archived ? (
+                'Archivée'
+              ) : dirty ? (
+                'À enregistrer'
+              ) : original ? (
+                <>
+                  <Check size={12} />
+                  Enregistrée
+                </>
+              ) : (
+                'Brouillon'
+              )}
             </span>
           </div>
           <form
+            ref={formRef}
             onSubmit={(event) => {
               event.preventDefault()
               void save()
             }}
           >
             <fieldset disabled={saving || draft.archived}>
-              <label>
-                Date de l’entrée
-                <input
-                  aria-label="Date de l’entrée"
-                  type="date"
-                  required
-                  value={draft.entry_date}
-                  onChange={(e) => patch({ entry_date: e.target.value })}
-                />
-              </label>
-              <label>
-                <span>
-                  Titre <span className="muted">(facultatif)</span>
+              <div className="journal-meta">
+                <label>
+                  <span>Date de l’entrée</span>
+                  <input
+                    aria-label="Date de l’entrée"
+                    type="date"
+                    required
+                    value={draft.entry_date}
+                    onChange={(event) =>
+                      patch({ entry_date: event.target.value })
+                    }
+                  />
+                </label>
+                <span className="journal-date-note">
+                  Une journée à raconter
                 </span>
+              </div>
+              <label className="journal-title">
+                <span className="journal-sr-only">Titre (facultatif)</span>
                 <input
                   maxLength={160}
                   value={draft.title}
-                  onChange={(e) => patch({ title: e.target.value })}
-                  placeholder="Quelques mots pour cette journée…"
+                  onChange={(event) => patch({ title: event.target.value })}
+                  placeholder="Donnez un titre à cette page…"
                 />
               </label>
               <div className="journal-mood">
-                <span id="mood-label">
-                  Comment vous sentez-vous ?{' '}
-                  <span className="muted">(facultatif)</span>
-                </span>
-                <div role="group" aria-labelledby="mood-label">
+                <div className="journal-mood-heading">
+                  <span id="mood-label">
+                    Votre ressenti <span>(facultatif)</span>
+                  </span>
+                  <button
+                    className="journal-mood-toggle"
+                    type="button"
+                    aria-expanded={showMood}
+                    aria-controls="journal-mood-choices"
+                    aria-label="Choisir un ressenti"
+                    onClick={() => setShowMood((current) => !current)}
+                  >
+                    {draft.mood ? (
+                      <>
+                        <MoodMark value={draft.mood} />
+                        <span>{moods[draft.mood - 1]}</span>
+                      </>
+                    ) : (
+                      <span>{showMood ? 'Masquer' : 'Choisir'}</span>
+                    )}
+                    <ChevronDown size={12} />
+                  </button>
+                </div>
+                <div
+                  className="journal-mood-options"
+                  id="journal-mood-choices"
+                  role="group"
+                  aria-labelledby="mood-label"
+                  hidden={!showMood}
+                >
                   {moods.map((mood, index) => (
                     <button
                       key={mood}
                       type="button"
                       aria-pressed={draft.mood === index + 1}
                       aria-label={mood}
-                      onClick={() =>
+                      onClick={() => {
                         patch({
                           mood: draft.mood === index + 1 ? null : index + 1,
                         })
-                      }
+                        if (window.matchMedia('(max-width: 600px)').matches)
+                          setShowMood(false)
+                      }}
                     >
-                      <span aria-hidden="true">{faces[index]}</span>
+                      <MoodMark value={index + 1} />
                       <span>{mood}</span>
                     </button>
                   ))}
                 </div>
               </div>
               <label className="journal-writing">
-                Votre texte
+                <span className="journal-sr-only">Votre texte</span>
                 <textarea
+                  ref={textRef}
                   required
                   maxLength={100000}
                   value={draft.content}
-                  onChange={(e) => patch({ content: e.target.value })}
-                  placeholder="Ce qui m’a marqué aujourd’hui… Une idée, un progrès, une difficulté, un moment à retenir."
-                  rows={13}
+                  onChange={(event) => patch({ content: event.target.value })}
+                  placeholder="Commencez par ce qui vous vient. Un détail, une idée, un moment de la journée…"
+                  rows={10}
                 />
               </label>
             </fieldset>
             <div className="journal-editor-footer">
-              <span className="muted">
-                {draft.content.trim()
-                  ? draft.content.trim().split(/\s+/).length
-                  : 0}{' '}
-                mots
-              </span>
-              <button
-                className="btn primary"
-                disabled={
-                  saving ||
-                  draft.archived ||
-                  !draft.content.trim() ||
-                  (!dirty && !!original)
-                }
-              >
-                <Save size={16} />
-                {saving ? 'Enregistrement…' : 'Enregistrer'}
-              </button>
+              <div className="journal-word-count">
+                <strong>{wordCount.toLocaleString('fr-FR')}</strong>
+                <span>{wordCount === 1 ? 'mot' : 'mots'}</span>
+              </div>
+              <div className="journal-save">
+                <span className="journal-save-hint">
+                  Enregistrement manuel <kbd>⌘ / Ctrl S</kbd>
+                </span>
+                <button className="btn primary" disabled={!canSave}>
+                  <Save size={16} />
+                  {saving ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+              </div>
             </div>
           </form>
-          {original && (
-            <button
-              className="journal-archive"
-              disabled={saving || dirty}
-              onClick={() => void save(!draft.archived)}
-            >
-              <Archive size={15} />
-              {draft.archived
-                ? 'Restaurer cette entrée'
-                : 'Archiver cette entrée'}
-            </button>
-          )}
-          <p className="journal-feedback" role="status">
-            {message}
-          </p>
-          {error && (
-            <p className="journal-error" role="alert">
-              {error}
+          <div className="journal-editor-bottom">
+            <p className="journal-feedback" role="status">
+              {message ||
+                (dirty
+                  ? 'Votre page contient des modifications à enregistrer.'
+                  : '')}
             </p>
+            {original && (
+              <button
+                className="journal-archive"
+                disabled={saving || dirty}
+                title={
+                  dirty
+                    ? 'Enregistrez les modifications avant d’archiver.'
+                    : undefined
+                }
+                onClick={() => void save(!draft.archived)}
+              >
+                {draft.archived ? (
+                  <RotateCcw size={14} />
+                ) : (
+                  <Archive size={14} />
+                )}
+                <span>
+                  {draft.archived
+                    ? 'Restaurer cette entrée'
+                    : 'Archiver cette entrée'}
+                </span>
+              </button>
+            )}
+          </div>
+          {error && (
+            <div className="journal-error" role="alert">
+              <strong>Votre texte est conservé dans l’éditeur.</strong>
+              <p>{error}</p>
+            </div>
           )}
         </section>
-        <aside className="journal-history" aria-label="Historique du journal">
+        <aside
+          className="journal-history"
+          aria-label="Historique du journal"
+          hidden={focused}
+        >
           <div className="journal-history-heading">
+            <span className="section-kicker">AU FIL DU TEMPS</span>
             <h2>Vos pages</h2>
-            <span>À votre rythme</span>
           </div>
           <div
             className="journal-tabs"
@@ -336,55 +497,120 @@ export function JournalView({
               Archives
             </button>
           </div>
-          {!entries.length && !loading && (
+          {historyError && (
+            <div className="journal-history-error" role="alert">
+              <p>{historyError}</p>
+              <button
+                disabled={saving || loading}
+                onClick={() => setRetry((current) => current + 1)}
+              >
+                <RotateCcw size={14} />
+                Réessayer
+              </button>
+            </div>
+          )}
+          {!entries.length && !loading && !historyError && (
             <div className="journal-empty">
-              <BookOpen size={28} />
+              <BookOpen size={26} />
               <h3>
                 {archives
-                  ? 'Aucune entrée archivée'
-                  : 'Votre histoire commence ici'}
+                  ? 'Des pages à retrouver'
+                  : 'La première page est la vôtre.'}
               </h3>
               <p>
                 {archives
-                  ? 'Les entrées archivées restent consultables et peuvent être restaurées.'
-                  : 'Quelques mots suffisent. Écrivez votre première page, puis enregistrez-la.'}
+                  ? 'Aucune entrée archivée pour l’instant. Vous pourrez les relire et les restaurer ici.'
+                  : 'Un souvenir, une question, une pensée. Quelques mots suffisent pour commencer.'}
               </p>
             </div>
           )}
           <div className="journal-entry-list">
-            {entries.map((entry) => (
-              <button
-                className={`journal-entry ${original?.id === entry.id ? 'selected' : ''}`}
-                key={entry.id}
-                onClick={() => open(entry)}
-                disabled={saving}
-                aria-pressed={original?.id === entry.id}
-              >
-                <time dateTime={entry.entry_date}>
-                  {formatDate(entry.entry_date)}
-                </time>
-                <strong>{entry.title || 'Sans titre'}</strong>
-                <p>{entry.content.slice(0, 160)}</p>
-                {entry.mood && (
-                  <span>
-                    {faces[entry.mood - 1]} {moods[entry.mood - 1]}
-                  </span>
+            {entries.map((entry, index) => (
+              <Fragment key={entry.id}>
+                {(index === 0 ||
+                  entries[index - 1].entry_date.slice(0, 7) !==
+                    entry.entry_date.slice(0, 7)) && (
+                  <h3 className="journal-month">
+                    {dateLabel(entry.entry_date, true)}
+                  </h3>
                 )}
-              </button>
+                <button
+                  className={`journal-entry ${original?.id === entry.id ? 'selected' : ''}`}
+                  onClick={() => open(entry)}
+                  disabled={saving}
+                  aria-pressed={original?.id === entry.id}
+                >
+                  <div className="journal-entry-date">
+                    <time dateTime={entry.entry_date}>
+                      {dateLabel(entry.entry_date)}
+                    </time>
+                    <ArrowUpRight size={15} aria-hidden="true" />
+                  </div>
+                  <strong>{entry.title || 'Sans titre'}</strong>
+                  <p>{entry.content.slice(0, 160)}</p>
+                  {entry.mood && (
+                    <span className="journal-entry-mood">
+                      <MoodMark value={entry.mood} />
+                      {moods[entry.mood - 1]}
+                    </span>
+                  )}
+                </button>
+              </Fragment>
             ))}
           </div>
-          {loading && <p role="status">Chargement…</p>}
+          {loading && (
+            <p className="journal-loading" role="status">
+              <span aria-hidden="true" />
+              Chargement de vos pages…
+            </p>
+          )}
           {more && (
             <button
-              className="btn secondary"
+              className="journal-more"
               disabled={loading || saving}
               onClick={() => void loadMore()}
             >
               Voir les entrées précédentes
+              <ChevronLeft size={14} />
             </button>
           )}
+          <p className="journal-history-note">Une page à la fois.</p>
         </aside>
       </div>
+      <dialog
+        ref={dialogRef}
+        className="journal-discard-dialog"
+        aria-labelledby="journal-discard-title"
+        onCancel={(event) => {
+          event.preventDefault()
+          setPendingEntry(undefined)
+        }}
+      >
+        <span className="section-kicker">VOTRE BROUILLON</span>
+        <h2 id="journal-discard-title">Garder le fil ?</h2>
+        <p>
+          Cette page contient des modifications non enregistrées. Vous pouvez
+          continuer à écrire ou les abandonner pour ouvrir une autre page.
+        </p>
+        <div>
+          <button
+            autoFocus
+            className="btn secondary"
+            onClick={() => setPendingEntry(undefined)}
+          >
+            Continuer à écrire
+          </button>
+          <button
+            className="btn primary"
+            onClick={() => {
+              if (pendingEntry !== undefined) selectEntry(pendingEntry)
+              setPendingEntry(undefined)
+            }}
+          >
+            Abandonner les modifications
+          </button>
+        </div>
+      </dialog>
     </main>
   )
 }
