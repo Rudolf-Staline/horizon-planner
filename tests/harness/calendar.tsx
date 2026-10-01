@@ -15,6 +15,7 @@ import type {
   PlannerEvent,
 } from '../../src/domain/types'
 import '../../src/styles.css'
+import '../../src/styles/interface.css'
 
 function CalendarHarness() {
   const [events, setEvents] =
@@ -38,6 +39,7 @@ function CalendarHarness() {
       selectedId={selectedId}
       draft={draft}
       onMode={() => {}}
+      onBatchCreate={() => {}}
       onAnchorDate={() => {}}
       onSelect={setSelectedId}
       onChange={(

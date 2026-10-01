@@ -1,9 +1,18 @@
-import { Cloud, Search } from 'lucide-react'
+import { Cloud, Search, Target } from 'lucide-react'
 import type { CloudStatus } from '../state/planner'
 import type { CalendarMode } from './CalendarView'
+import type { Section } from './Sidebar'
+import { Brand } from './Brand'
+
+const sectionLabels: Record<Section, string> = {
+  calendar: 'Calendrier', tasks: 'Tâches', projects: 'Projets',
+  routines: 'Routines', focus: 'Focus', analytics: 'Analyses',
+  settings: 'Paramètres', admin: 'Administration',
+}
 
 interface Props {
   view: CalendarMode | 'now'
+  section: Section
   onView: (view: CalendarMode | 'now') => void
   onCommand: () => void
   onAccount: () => void
@@ -13,6 +22,7 @@ interface Props {
 
 export function Header({
   view,
+  section,
   onView,
   onCommand,
   onAccount,
@@ -21,39 +31,20 @@ export function Header({
 }: Props) {
   const initial =
     userLabel?.trim().charAt(0).toUpperCase() || 'U'
+  const syncLabel = cloudStatus === 'synced' ? 'Synchronisé'
+    : cloudStatus === 'syncing' ? 'Synchronisation…'
+      : cloudStatus === 'error' ? 'Erreur de synchronisation' : 'Mode local'
 
   return (
     <header className="topbar">
-      <div className="top-nav">
-        <button
-          className={
-            view === 'now'
-              ? 'top-link active'
-              : 'top-link'
-          }
-          onClick={() => onView('now')}
-        >
-          Maintenant
-        </button>
-
-        {([
-          ['day', 'Jour'],
-          ['week', 'Semaine'],
-          ['month', 'Mois'],
-          ['year', 'Année'],
-        ] as const).map(([value, label]) => (
-          <button
-            key={value}
-            className={
-              view === value
-                ? 'top-link active'
-                : 'top-link'
-            }
-            onClick={() => onView(value)}
-          >
-            {label}
+      <div className="topbar-context">
+        <span>ESPACE PERSONNEL</span>
+        <strong>{sectionLabels[section]}</strong>
+        {section === 'calendar' && view !== 'now' && (
+          <button className="topbar-focus" onClick={() => onView('now')}>
+            <Target size={15}/> Maintenant
           </button>
-        ))}
+        )}
       </div>
 
       <button
@@ -62,11 +53,11 @@ export function Header({
       >
         <Search size={18}/>
         <span>Planifier ou rechercher…</span>
-        <kbd>⌘K</kbd>
+        <kbd>Ctrl / ⌘ K</kbd>
       </button>
 
       <div className="mobile-header-start">
-        <strong>Horizon</strong>
+        <Brand/>
         <button
           className="mobile-command"
           onClick={onCommand}
@@ -80,15 +71,8 @@ export function Header({
         className={
           `icon-button sync-indicator sync-${cloudStatus}`
         }
-        title={
-          cloudStatus === 'synced'
-            ? 'Synchronisé'
-            : cloudStatus === 'syncing'
-              ? 'Synchronisation…'
-              : cloudStatus === 'error'
-                ? 'Erreur de synchronisation'
-                : 'Mode local'
-        }
+        title={syncLabel}
+        aria-label={`${syncLabel} · Ouvrir mon compte`}
         onClick={onAccount}
       >
         <Cloud size={19}/>
