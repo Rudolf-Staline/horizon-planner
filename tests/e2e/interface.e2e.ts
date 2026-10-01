@@ -17,6 +17,7 @@ for (const width of [1440, 1024, 390, 320]) {
       await page.locator('.sidebar').getByRole('button', { name: 'Tâches', exact: true }).click()
     }
     await expect(page.getByRole('heading', { name: 'Tâches', exact: true })).toBeVisible()
+    expect((await page.locator('.tasks-search').boundingBox())!.height).toBeGreaterThanOrEqual(40)
     await page.getByRole('button', { name: 'Nouvelle tâche' }).click()
     await expect(page.locator('.task-inbox-create')).toBeVisible()
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
