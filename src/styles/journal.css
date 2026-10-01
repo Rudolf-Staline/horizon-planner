@@ -253,23 +253,23 @@
 .journal-mood {
   padding: 0 0 23px;
 }
-.journal-mood > span {
+.journal-mood-heading > span {
   display: block;
   margin-bottom: 10px;
   color: #857481;
   font-size: 10px;
 }
-.journal-mood > span > span {
+.journal-mood-heading > span > span {
   color: #887481;
   font-size: 9px;
   margin-left: 4px;
 }
-.journal-mood > div {
+.journal-mood-options {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 7px;
 }
-.journal-mood button {
+.journal-mood-options button {
   min-width: 0;
   background: transparent;
   border: 1px solid #e7dfdd;
@@ -285,23 +285,23 @@
   line-height: 1.25;
   cursor: pointer;
 }
-.journal-mood button > svg {
+.journal-mood-options button > svg {
   width: 23px;
   height: 23px;
 }
-.journal-mood button > span {
+.journal-mood-options button > span {
   text-align: center;
   color: #796573;
 }
-.journal-mood button[aria-pressed='true'] {
+.journal-mood-options button[aria-pressed='true'] {
   background: #f2eaf0;
   border-color: #b7a1b1;
   color: var(--journal-plum);
 }
-.journal-mood button[aria-pressed='true'] > span {
+.journal-mood-options button[aria-pressed='true'] > span {
   color: var(--journal-plum);
 }
-.journal-mood button:hover:not(:disabled) {
+.journal-mood-options button:hover:not(:disabled) {
   background: #f7f1f4;
   color: var(--journal-plum);
 }
@@ -831,20 +831,20 @@
   .journal-title input::placeholder {
     font-size: 22px;
   }
-  .journal-mood > div {
+  .journal-mood-options {
     gap: 4px;
   }
-  .journal-mood button {
+  .journal-mood-options button {
     padding: 8px 2px;
     font-size: 9px;
   }
-  .journal-mood button > span {
+  .journal-mood-options button > span {
     min-height: 22px;
     display: flex;
     align-items: center;
     overflow-wrap: anywhere;
   }
-  .journal-mood button > svg {
+  .journal-mood-options button > svg {
     width: 22px;
     height: 22px;
   }
@@ -892,7 +892,7 @@
   .journal-meta label > span {
     font-size: 9px;
   }
-  .journal-mood button {
+  .journal-mood-options button {
     font-size: 9px;
   }
 }
@@ -900,4 +900,47 @@
   .journal-loading > span {
     animation: none;
   }
+}
+
+.journal-mood-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.journal-mood-heading > span {
+  margin-bottom: 0;
+}
+.journal-mood-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  color: #786373;
+  padding: 6px 0;
+  font-size: 10px;
+  cursor: pointer;
+}
+.journal-mood-toggle > svg:first-child:not(:last-child) {
+  width: 15px;
+  height: 15px;
+}
+.journal-mood-toggle[aria-expanded='true'] > svg:last-child {
+  transform: rotate(180deg);
+}
+.journal-mood-options[hidden] {
+  display: none;
+}
+@media (max-width: 600px) {
+  .journal-title {
+    margin-block: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .journal-heading h1 { font-size: 36px; margin: 8px 0; }
+  .journal-editor-top { margin-bottom: 12px; padding-bottom: 12px; }
+  .journal-mood { padding-bottom: 12px; }
+  .journal-title { margin-block: 14px; }
 }

@@ -5,6 +5,7 @@ import {
   BookOpen,
   Check,
   ChevronLeft,
+  ChevronDown,
   Maximize2,
   Minimize2,
   Plus,
@@ -89,6 +90,9 @@ export function JournalView({
   const [historyError, setHistoryError] = useState('')
   const [message, setMessage] = useState('')
   const [focused, setFocused] = useState(false)
+  const [showMood, setShowMood] = useState(
+    () => !window.matchMedia('(max-width: 600px)').matches,
+  )
   const [retry, setRetry] = useState(0)
   // Undefined means no dialog; null requests a new blank entry.
   const [pendingEntry, setPendingEntry] = useState<
@@ -347,21 +351,49 @@ export function JournalView({
                 />
               </label>
               <div className="journal-mood">
-                <span id="mood-label">
-                  Votre ressenti <span>(facultatif)</span>
-                </span>
-                <div role="group" aria-labelledby="mood-label">
+                <div className="journal-mood-heading">
+                  <span id="mood-label">
+                    Votre ressenti <span>(facultatif)</span>
+                  </span>
+                  <button
+                    className="journal-mood-toggle"
+                    type="button"
+                    aria-expanded={showMood}
+                    aria-controls="journal-mood-choices"
+                    aria-label="Choisir un ressenti"
+                    onClick={() => setShowMood((current) => !current)}
+                  >
+                    {draft.mood ? (
+                      <>
+                        <MoodMark value={draft.mood} />
+                        <span>{moods[draft.mood - 1]}</span>
+                      </>
+                    ) : (
+                      <span>{showMood ? 'Masquer' : 'Choisir'}</span>
+                    )}
+                    <ChevronDown size={12} />
+                  </button>
+                </div>
+                <div
+                  className="journal-mood-options"
+                  id="journal-mood-choices"
+                  role="group"
+                  aria-labelledby="mood-label"
+                  hidden={!showMood}
+                >
                   {moods.map((mood, index) => (
                     <button
                       key={mood}
                       type="button"
                       aria-pressed={draft.mood === index + 1}
                       aria-label={mood}
-                      onClick={() =>
+                      onClick={() => {
                         patch({
                           mood: draft.mood === index + 1 ? null : index + 1,
                         })
-                      }
+                        if (window.matchMedia('(max-width: 600px)').matches)
+                          setShowMood(false)
+                      }}
                     >
                       <MoodMark value={index + 1} />
                       <span>{mood}</span>

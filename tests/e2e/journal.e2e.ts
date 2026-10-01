@@ -171,3 +171,23 @@ test('mobile journal keeps saving accessible and centers the active navigation i
     )
     .toBeLessThanOrEqual(320)
 })
+
+test('mobile mood picker gives writing room and retains the selected feeling', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 740 })
+  await page.goto('/tests/harness/journal.html')
+  const group = page.getByRole('group', { name: 'Votre ressenti (facultatif)' })
+  await expect(group).toBeHidden()
+  await page
+    .getByRole('button', { name: 'Choisir un ressenti', exact: true })
+    .click()
+  await page.getByRole('button', { name: 'Très bien', exact: true }).click()
+  await expect(group).toBeHidden()
+  await expect(
+    page.getByRole('button', { name: 'Choisir un ressenti', exact: true }),
+  ).toContainText('Très bien')
+  const textarea = await page.getByLabel('Votre texte').boundingBox()
+  const footer = await page.locator('.journal-editor-footer').boundingBox()
+  expect(footer!.y - textarea!.y).toBeGreaterThan(60)
+})
