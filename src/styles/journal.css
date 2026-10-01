@@ -337,6 +337,10 @@
   border-radius: 3px;
 }
 .journal-editor-footer {
+  position: sticky;
+  bottom: 16px;
+  z-index: 2;
+  background: var(--journal-paper);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -771,6 +775,9 @@
   }
 }
 @media (max-width: 600px) {
+  .journal-editor-footer {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
   .journal-page {
     padding: 25px 18px 28px;
   }

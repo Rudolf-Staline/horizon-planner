@@ -146,3 +146,28 @@ test('history can be retried without losing the draft', async ({ page }) => {
     'Toujours là pendant la reconnexion.',
   )
 })
+
+test('mobile journal keeps saving accessible and centers the active navigation item', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 740 })
+  await page.goto('/tests/harness/journal.html')
+  const save = page.getByRole('button', { name: 'Enregistrer', exact: true })
+  await expect
+    .poll(
+      async () =>
+        (await save.boundingBox())!.y + (await save.boundingBox())!.height,
+    )
+    .toBeLessThan(670)
+  const selected = page.locator('.mobile-nav [aria-current="page"]')
+  await expect
+    .poll(async () => (await selected.boundingBox())!.x)
+    .toBeGreaterThanOrEqual(0)
+  await expect
+    .poll(
+      async () =>
+        (await selected.boundingBox())!.x +
+        (await selected.boundingBox())!.width,
+    )
+    .toBeLessThanOrEqual(320)
+})
