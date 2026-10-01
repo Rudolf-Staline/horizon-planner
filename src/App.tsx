@@ -1,3 +1,4 @@
+import { JournalView } from './components/JournalView'
 import { useEffect, useMemo, useState } from 'react'
 import { AccountDialog } from './components/AccountDialog'
 import { BatchQuickCreate } from './components/BatchQuickCreate'
@@ -509,6 +510,8 @@ export default function App() {
               timeZone={planner.cloudPreferences.timezone}
             />
           )}
+
+        {planner.cloudUserId && <JournalView key={planner.cloudUserId} userId={planner.cloudUserId} timeZone={planner.cloudPreferences.timezone} active={section === 'journal'}/>}
 
         {section === 'tasks' && (
           planner.cloudUserId && (

@@ -1,3 +1,4 @@
+import { validateJournal, type JournalDraft } from './journal'
 import type { PlannerEvent } from '../domain/types'
 import { supabase } from '../lib/supabase'
 import { localDateTimeToIso } from '../utils/timezone'
@@ -14,12 +15,23 @@ export type HorizonBackup = {
   routineExceptions: Record<string, unknown>[]
   calendarSources: Record<string, unknown>[]
   calendarEvents: Record<string, unknown>[]
+  journalEntries?: Record<string, unknown>[]
   plannedSegments: Record<string, unknown>[]
 }
 
 function requireSupabase() {
   if (!supabase) throw new Error('Supabase n’est pas configuré.')
   return supabase
+}
+
+async function journalRows(userId: string) {
+  const result: Record<string, unknown>[] = []
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await requireSupabase().from('journal_entries').select('*').eq('user_id', userId).order('id').range(offset, offset + 499)
+    if (error) throw error
+    result.push(...(data ?? []))
+    if (!data || data.length < 500) return result
+  }
 }
 
 async function rows(table: string, userId: string) {
@@ -34,7 +46,7 @@ async function rows(table: string, userId: string) {
 
 export async function exportAccountBackup(userId: string): Promise<HorizonBackup> {
   const client = requireSupabase()
-  const [profileResult, projects, tasks, taskConstraints, routines, routineExceptions, calendarSources, calendarEvents, plannedSegments] = await Promise.all([
+  const [profileResult, projects, tasks, taskConstraints, routines, routineExceptions, calendarSources, calendarEvents, plannedSegments, journalEntries] = await Promise.all([
     client.from('profiles').select('*').eq('id', userId).single(),
     rows('projects', userId),
     rows('tasks', userId),
@@ -44,6 +56,7 @@ export async function exportAccountBackup(userId: string): Promise<HorizonBackup
     rows('calendar_sources', userId),
     rows('calendar_events', userId),
     rows('planned_segments', userId),
+    journalRows(userId),
   ])
 
   if (profileResult.error) throw profileResult.error
@@ -61,6 +74,7 @@ export async function exportAccountBackup(userId: string): Promise<HorizonBackup
     calendarSources,
     calendarEvents,
     plannedSegments,
+    journalEntries,
   }
 }
 
@@ -74,7 +88,7 @@ export async function importAccountBackup(userId: string, backup: HorizonBackup)
   const collections = [
     backup.projects, backup.tasks, backup.taskConstraints,
     backup.routines, backup.routineExceptions, backup.calendarSources,
-    backup.calendarEvents, backup.plannedSegments,
+    backup.calendarEvents, backup.plannedSegments, backup.journalEntries ?? [],
   ]
   if (collections.some((items) => !Array.isArray(items) || items.some(
     (item) => !item || typeof item !== 'object' || Array.isArray(item),
@@ -82,6 +96,12 @@ export async function importAccountBackup(userId: string, backup: HorizonBackup)
     throw new Error('La sauvegarde est incomplète ou endommagée.')
   }
 
+  const journalEntries = (backup.journalEntries ?? []).map(value => {
+    const draft = { id: value.id, entry_date: value.entry_date, title: value.title, content: value.content, mood: value.mood, archived: value.archived }
+    if (typeof draft.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(draft.id) || typeof draft.entry_date !== 'string' || typeof draft.title !== 'string' || typeof draft.content !== 'string' || typeof draft.archived !== 'boolean') throw new Error('Une entrée du journal est endommagée.')
+    validateJournal(draft as JournalDraft)
+    return draft
+  })
   const client = requireSupabase()
   const upsertRows = async (table: string, values: Record<string, unknown>[]) => {
     if (values.length === 0) return
@@ -117,6 +137,7 @@ export async function importAccountBackup(userId: string, backup: HorizonBackup)
   await upsertRows('calendar_sources', backup.calendarSources ?? [])
   await upsertRows('calendar_events', backup.calendarEvents)
   await upsertRows('planned_segments', backup.plannedSegments)
+  await upsertRows('journal_entries', journalEntries)
 }
 
 function downloadFile(filename: string, content: string, type: string) {

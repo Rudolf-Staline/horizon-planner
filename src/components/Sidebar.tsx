@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  BookOpen,
   CalendarDays,
   CheckSquare2,
   FolderKanban,
@@ -15,6 +16,7 @@ export type Section =
   | 'tasks'
   | 'projects'
   | 'routines'
+  | 'journal'
   | 'focus'
   | 'analytics'
   | 'settings'
@@ -28,6 +30,7 @@ const mainItems = [
 ] as const
 
 const secondaryItems = [
+  ['journal', 'Journal', BookOpen],
   ['focus', 'Focus', Target],
   ['analytics', 'Analyses', BarChart3],
   ['settings', 'Paramètres', Settings],
