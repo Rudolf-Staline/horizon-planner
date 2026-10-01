@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     rollupOptions: {
-      input: ['index.html', 'tests/harness/interface.html'],
+      input: ['index.html', 'tests/harness/interface.html', 'tests/harness/mobile.html'],
     },
   },
 })

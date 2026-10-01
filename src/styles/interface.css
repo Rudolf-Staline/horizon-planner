@@ -20,7 +20,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 button { transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease; }
 button:disabled { cursor: not-allowed; }
 .app { background: var(--canvas); }
-.app-body { grid-template-columns: 240px minmax(0, 1fr); }
+.app-body { grid-template-columns: 240px minmax(0, 1fr); min-height: calc(100dvh - 72px); }
 .app-body > main { min-width: 0; }
 .horizon-brand { display: flex; align-items: center; gap: 10px; font-size: 27px; font-weight: 750; letter-spacing: -1.1px; }
 .horizon-mark { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--blue); color: #fff; flex-shrink: 0; box-shadow: 0 3px 8px rgb(36 99 235 / 16%); }
@@ -138,7 +138,7 @@ button:disabled { cursor: not-allowed; }
 .tasks-toolbar button.active { background: #e7efff; }
 .tasks-search { background: #fff; width: min(280px, 100%); }
 .tasks-search input { background: transparent; font-size: 13px; }
-.tasks-header-actions { flex-wrap: wrap; }
+.tasks-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .task-inbox-create { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 22px; }
 .task-inbox-create label, .project-create label, .routine-create label { min-width: 0; }
 .task-inbox-create input, .task-inbox-create select, .project-create input, .routine-create input, .routine-create select { width: 100%; }
