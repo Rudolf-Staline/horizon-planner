@@ -6,7 +6,7 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.route('**/rest/v1/**', route => route.fulfill({ json: [] }))
     await page.goto('/tests/harness/interface.html')
     await expect(page.locator('.week-grid-wrap')).toBeVisible()
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
     if (width <= 900) {
       await expect(page.locator('.day-head')).toHaveCount(1)
       await expect(page.locator('.mobile-nav')).toBeVisible()
@@ -19,7 +19,7 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(page.getByRole('heading', { name: 'Tâches', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Nouvelle tâche' }).click()
     await expect(page.locator('.task-inbox-create')).toBeVisible()
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
   })
 }
 
@@ -41,7 +41,7 @@ test('entry form fits a narrow phone and remains keyboard accessible', async ({ 
   await page.setViewportSize({ width: 320, height: 740 })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible()
-  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
   await page.getByLabel('Adresse e-mail').focus()
   await page.keyboard.press('Tab')
   await expect(page.getByLabel('Mot de passe', { exact: true })).toBeFocused()

@@ -9,7 +9,7 @@
   --blue-soft: #edf3ff;
   --shadow-soft: 0 4px 20px rgb(24 39 71 / 4%);
 }
-body { min-width: 320px; background: var(--canvas); -webkit-font-smoothing: antialiased; }
+body { min-width: 0; background: var(--canvas); -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 button, a, input, select, textarea { scroll-margin-block: 90px; }
@@ -204,7 +204,8 @@ button:disabled { cursor: not-allowed; }
 .batch-head > div:nth-child(2) > span { color: var(--blue); }
 .batch-icon { background: var(--blue-soft); color: var(--blue); }
 .batch-fields label span, .batch-weekdays legend { color: #52617a; }
-.batch-fields input, .batch-fields select { border-color: var(--border); color: var(--navy); }
+.batch-fields input, .batch-fields select { min-width: 0; max-width: 100%; border-color: var(--border); color: var(--navy); }
+.batch-fields input:focus, .batch-fields select:focus { outline-color: #93b4fc; }
 .batch-weekdays button.active, .batch-actions button:last-child { background: var(--blue); border-color: var(--blue); }
 .batch-preview { border-color: var(--blue); background: #f1f5ff; }
 .series-edit-scope { border-color: #cad9fc; background: #f3f6ff; }
@@ -327,6 +328,9 @@ button:disabled { cursor: not-allowed; }
   .command-footer { flex-wrap: wrap; }
   .conflict-bar { grid-template-columns: auto minmax(0, 1fr); bottom: calc(84px + env(safe-area-inset-bottom)); }
   .conflict-actions { grid-column: 1 / -1; flex-wrap: wrap; }
+}
+@media (max-width: 360px) {
+  .batch-fields { grid-template-columns: minmax(0, 1fr); }
 }
 @media (pointer: coarse) {
   .btn, .icon-button, .mobile-command, .calendar-today.btn, .batch-trigger, .view-switch button { min-height: 44px; }

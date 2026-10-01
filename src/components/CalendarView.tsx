@@ -172,10 +172,10 @@ export function CalendarView({
             160,
             Math.min(
               960,
-              (availableWidth || viewportWidth - 32) - 54,
+              (availableWidth || viewportWidth - 32) - 56,
             ),
           )
-        : Math.max(128, Math.min(170, Math.floor(((availableWidth || viewportWidth - 32) - 54) / 7)))
+        : Math.max(128, Math.min(170, Math.floor(((availableWidth || viewportWidth - 32) - 56) / 7)))
     const gridWidth = columnWidth * dates.length
 
     const visibleEvents = dates.flatMap(
@@ -192,7 +192,7 @@ export function CalendarView({
       <>
         <section
           className={`week-grid-wrap ${mode === 'day' ? 'day-grid-wrap' : ''}`}
-          style={{ width: gridWidth + 54 }}
+          style={{ width: gridWidth + 56 }}
         >
           <div className="day-head-spacer"/>
           <div
