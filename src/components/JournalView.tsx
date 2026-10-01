@@ -1,34 +1,34 @@
-import { useEffect, useRef, useState } from "react";
-import { Archive, BookOpen, Plus, Save } from "lucide-react";
+import { useEffect, useRef, useState } from 'react'
+import { Archive, BookOpen, Plus, Save } from 'lucide-react'
 import {
   journalRepository,
   type JournalDraft,
   type JournalEntry,
   type JournalRepository,
-} from "../data/journal";
-import { zonedDateToIso } from "../utils/timezone";
+} from '../data/journal'
+import { zonedDateToIso } from '../utils/timezone'
 
-const moods = ["Très difficile", "Difficile", "Neutre", "Bien", "Très bien"];
-const faces = ["😞", "🙁", "😐", "🙂", "😊"];
+const moods = ['Très difficile', 'Difficile', 'Neutre', 'Bien', 'Très bien']
+const faces = ['😞', '🙁', '😐', '🙂', '😊']
 function blank(timeZone: string): JournalDraft {
   return {
     id: crypto.randomUUID(),
     entry_date: zonedDateToIso(new Date(), timeZone),
-    title: "",
-    content: "",
+    title: '',
+    content: '',
     mood: null,
     archived: false,
-  };
+  }
 }
 function draftOf(entry: JournalEntry): JournalDraft {
-  const { id, entry_date, title, content, mood, archived } = entry;
-  return { id, entry_date, title, content, mood, archived };
+  const { id, entry_date, title, content, mood, archived } = entry
+  return { id, entry_date, title, content, mood, archived }
 }
 function formatDate(date: string) {
-  return new Intl.DateTimeFormat("fr-FR", {
-    dateStyle: "long",
-    timeZone: "UTC",
-  }).format(new Date(`${date}T12:00:00Z`));
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(`${date}T12:00:00Z`))
 }
 
 export function JournalView({
@@ -37,133 +37,137 @@ export function JournalView({
   active = true,
   repository = journalRepository,
 }: {
-  userId: string;
-  timeZone: string;
-  active?: boolean;
-  repository?: JournalRepository;
+  userId: string
+  timeZone: string
+  active?: boolean
+  repository?: JournalRepository
 }) {
-  const [draft, setDraft] = useState(() => blank(timeZone));
-  const [original, setOriginal] = useState<JournalEntry | null>(null);
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [archives, setArchives] = useState(false);
-  const [more, setMore] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const generation = useRef(0);
+  const [draft, setDraft] = useState(() => blank(timeZone))
+  const [original, setOriginal] = useState<JournalEntry | null>(null)
+  const [entries, setEntries] = useState<JournalEntry[]>([])
+  const [archives, setArchives] = useState(false)
+  const [more, setMore] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const generation = useRef(0)
   const dirty = original
     ? JSON.stringify(draft) !== JSON.stringify(draftOf(original))
-    : Boolean(draft.title || draft.content || draft.mood);
+    : Boolean(draft.title || draft.content || draft.mood)
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
   useEffect(() => {
-    const request = ++generation.current;
-    if (!active) return;
-    setLoading(true);
-    setError("");
-    setEntries([]);
-    setMore(false);
+    const request = ++generation.current
+    if (!active) return
+    setLoading(true)
+    setError('')
+    setEntries([])
+    setMore(false)
     repository
       .list(userId, archives, 0)
       .then((rows) => {
         if (request === generation.current) {
-          setEntries(rows);
-          setMore(rows.length === 30);
+          setEntries(rows)
+          setMore(rows.length === 30)
         }
       })
       .catch(() => {
         if (request === generation.current)
           setError(
-            "L’historique ne peut pas être chargé. Réessayez en ouvrant à nouveau le journal.",
-          );
+            'L’historique ne peut pas être chargé. Réessayez en ouvrant à nouveau le journal.',
+          )
       })
       .finally(() => {
-        if (request === generation.current) setLoading(false);
-      });
+        if (request === generation.current) setLoading(false)
+      })
     return () => {
-      generation.current++;
-    };
-  }, [userId, archives, repository, active]);
+      generation.current++
+    }
+  }, [userId, archives, repository, active])
   function open(entry: JournalEntry | null) {
     if (
       saving ||
       (dirty &&
-        !window.confirm("Abandonner les modifications non enregistrées ?"))
+        !window.confirm('Abandonner les modifications non enregistrées ?'))
     )
-      return;
-    setOriginal(entry);
-    setDraft(entry ? draftOf(entry) : blank(timeZone));
-    setError("");
-    setMessage("");
+      return
+    setOriginal(entry)
+    setDraft(entry ? draftOf(entry) : blank(timeZone))
+    setError('')
+    setMessage('')
   }
   async function save(archived = draft.archived) {
-    setSaving(true);
-    setError("");
-    setMessage("");
+    setSaving(true)
+    setError('')
+    setMessage('')
     try {
       const saved = await repository.save(
         userId,
         { ...draft, archived },
         original,
-      );
-      setDraft(draftOf(saved));
-      setOriginal(saved);
+      )
+      setDraft(draftOf(saved))
+      setOriginal(saved)
       setMessage(
         archived
-          ? "Entrée archivée."
+          ? 'Entrée archivée.'
           : draft.archived
-            ? "Entrée restaurée."
-            : "Entrée enregistrée.",
-      );
+            ? 'Entrée restaurée.'
+            : 'Entrée enregistrée.',
+      )
       // Reset pagination after an edit that changes the ordering or archive state.
       try {
-        const rows = await repository.list(userId, archives, 0);
-        setEntries(rows);
-        setMore(rows.length === 30);
+        const request = ++generation.current
+        setLoading(false)
+        const rows = await repository.list(userId, archives, 0)
+        if (request === generation.current) {
+          setEntries(rows)
+          setMore(rows.length === 30)
+        }
       } catch {
         setError(
-          "L’entrée est enregistrée, mais l’historique n’a pas pu être actualisé. Rouvrez le journal pour réessayer.",
-        );
+          'L’entrée est enregistrée, mais l’historique n’a pas pu être actualisé. Rouvrez le journal pour réessayer.',
+        )
       }
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
-          : "Enregistrement impossible. Votre texte reste dans l’éditeur ; réessayez.",
-      );
+          : 'Enregistrement impossible. Votre texte reste dans l’éditeur ; réessayez.',
+      )
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
   }
   async function loadMore() {
-    const request = generation.current;
-    setLoading(true);
-    setError("");
+    const request = generation.current
+    setLoading(true)
+    setError('')
     try {
-      const rows = await repository.list(userId, archives, entries.length);
+      const rows = await repository.list(userId, archives, entries.length)
       if (request === generation.current) {
-        setEntries((current) => [...current, ...rows]);
-        setMore(rows.length === 30);
+        setEntries((current) => [...current, ...rows])
+        setMore(rows.length === 30)
       }
     } catch {
       if (request === generation.current)
-        setError("Impossible de charger la suite de l’historique. Réessayez.");
+        setError('Impossible de charger la suite de l’historique. Réessayez.')
     } finally {
-      if (request === generation.current) setLoading(false);
+      if (request === generation.current) setLoading(false)
     }
   }
   const patch = (value: Partial<JournalDraft>) => {
-    setDraft((current) => ({ ...current, ...value }));
-    setMessage("");
-  };
+    setDraft((current) => ({ ...current, ...value }))
+    setMessage('')
+  }
   return (
     <main className="collection-page journal-page" hidden={!active}>
       <header className="section-header">
@@ -190,21 +194,21 @@ export function JournalView({
         >
           <div className="journal-editor-top">
             <span>
-              <BookOpen size={18} />{" "}
-              {original ? "Votre entrée" : "Une page pour vous"}
+              <BookOpen size={18} />{' '}
+              {original ? 'Votre entrée' : 'Une page pour vous'}
             </span>
             <span className="journal-status">
               {dirty
-                ? "À enregistrer"
+                ? 'À enregistrer'
                 : original
-                  ? "Enregistrée"
-                  : "Nouvelle entrée"}
+                  ? 'Enregistrée'
+                  : 'Nouvelle entrée'}
             </span>
           </div>
           <form
             onSubmit={(event) => {
-              event.preventDefault();
-              void save();
+              event.preventDefault()
+              void save()
             }}
           >
             <fieldset disabled={saving || draft.archived}>
@@ -219,7 +223,9 @@ export function JournalView({
                 />
               </label>
               <label>
-                Titre <span className="muted">(facultatif)</span>
+                <span>
+                  Titre <span className="muted">(facultatif)</span>
+                </span>
                 <input
                   maxLength={160}
                   value={draft.title}
@@ -229,7 +235,7 @@ export function JournalView({
               </label>
               <div className="journal-mood">
                 <span id="mood-label">
-                  Comment vous sentez-vous ?{" "}
+                  Comment vous sentez-vous ?{' '}
                   <span className="muted">(facultatif)</span>
                 </span>
                 <div role="group" aria-labelledby="mood-label">
@@ -267,7 +273,7 @@ export function JournalView({
               <span className="muted">
                 {draft.content.trim()
                   ? draft.content.trim().split(/\s+/).length
-                  : 0}{" "}
+                  : 0}{' '}
                 mots
               </span>
               <button
@@ -280,7 +286,7 @@ export function JournalView({
                 }
               >
                 <Save size={16} />
-                {saving ? "Enregistrement…" : "Enregistrer"}
+                {saving ? 'Enregistrement…' : 'Enregistrer'}
               </button>
             </div>
           </form>
@@ -292,8 +298,8 @@ export function JournalView({
             >
               <Archive size={15} />
               {draft.archived
-                ? "Restaurer cette entrée"
-                : "Archiver cette entrée"}
+                ? 'Restaurer cette entrée'
+                : 'Archiver cette entrée'}
             </button>
           )}
           <p className="journal-feedback" role="status">
@@ -335,20 +341,20 @@ export function JournalView({
               <BookOpen size={28} />
               <h3>
                 {archives
-                  ? "Aucune entrée archivée"
-                  : "Votre histoire commence ici"}
+                  ? 'Aucune entrée archivée'
+                  : 'Votre histoire commence ici'}
               </h3>
               <p>
                 {archives
-                  ? "Les entrées archivées restent consultables et peuvent être restaurées."
-                  : "Quelques mots suffisent. Écrivez votre première page, puis enregistrez-la."}
+                  ? 'Les entrées archivées restent consultables et peuvent être restaurées.'
+                  : 'Quelques mots suffisent. Écrivez votre première page, puis enregistrez-la.'}
               </p>
             </div>
           )}
           <div className="journal-entry-list">
             {entries.map((entry) => (
               <button
-                className={`journal-entry ${original?.id === entry.id ? "selected" : ""}`}
+                className={`journal-entry ${original?.id === entry.id ? 'selected' : ''}`}
                 key={entry.id}
                 onClick={() => open(entry)}
                 disabled={saving}
@@ -357,7 +363,7 @@ export function JournalView({
                 <time dateTime={entry.entry_date}>
                   {formatDate(entry.entry_date)}
                 </time>
-                <strong>{entry.title || "Sans titre"}</strong>
+                <strong>{entry.title || 'Sans titre'}</strong>
                 <p>{entry.content.slice(0, 160)}</p>
                 {entry.mood && (
                   <span>
@@ -371,7 +377,7 @@ export function JournalView({
           {more && (
             <button
               className="btn secondary"
-              disabled={loading}
+              disabled={loading || saving}
               onClick={() => void loadMore()}
             >
               Voir les entrées précédentes
@@ -380,5 +386,5 @@ export function JournalView({
         </aside>
       </div>
     </main>
-  );
+  )
 }
