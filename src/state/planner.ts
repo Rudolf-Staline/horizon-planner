@@ -1,3 +1,4 @@
+import { reconcileSemester } from '../data/edtExcel'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
 import {
@@ -1202,7 +1203,14 @@ export function usePlanner() {
     imported: PlannerEvent[],
     weekKey: string,
   ) => {
-    if (authStatus !== 'authenticated' || imported.length === 0) return
+    if (authStatus !== 'authenticated') return
+
+    if (weekKey === 's7-2026-2027') {
+      commit(reconcileSemester(events, imported))
+      return
+    }
+
+    if (imported.length === 0) return
 
     const prefix = `edt:${weekKey}:`
     const importedKeys = new Set(imported.map((event) => event.externalId ?? event.id))

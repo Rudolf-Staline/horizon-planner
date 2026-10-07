@@ -1,3 +1,4 @@
+import { SemesterImport } from './SemesterImport'
 import { Bell, Calendar, Download, Save, ShieldCheck, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
@@ -224,6 +225,8 @@ export function SettingsView({ userId, preferences, events, onSaved, onImportEve
           <div className="settings-action-row"><button className="btn secondary" disabled={busy} onClick={() => void exportJson()}><Download size={15}/> Exporter JSON</button><button className="btn secondary" onClick={() => downloadPlannerIcs(events, preferences.timezone)}><Calendar size={15}/> Exporter calendrier ICS</button></div>
           <label className="file-drop"><Upload size={18}/><span>Importer une sauvegarde JSON</span><input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importJson(file); e.currentTarget.value = '' }}/></label>
         </article>
+
+        <SemesterImport key={userId} userId={userId} events={events} onImportEvents={onImportEvents}/>
 
         <article className="settings-card settings-schedule-import">
           <div className="settings-card-head"><Upload size={18}/><div><h2>Importer un emploi du temps</h2><p>Ajoutez manuellement le PDF hebdomadaire. Seuls les créneaux dont le début n’est pas encore passé sont proposés.</p></div></div>
