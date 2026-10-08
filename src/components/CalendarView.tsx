@@ -5,6 +5,7 @@ import {
 } from '../domain/constants'
 import type { PlannerEvent } from '../domain/types'
 import { layoutCalendarLanes } from '../domain/calendarLayout'
+import { isCalendarInformation, isRecoveryBlock } from '../domain/calendarInformation'
 import {
   addDays,
   addMonths,
@@ -93,14 +94,18 @@ export function CalendarView({
   const anchor = fromISODate(anchorDate)
   const todayIso = zonedDateToIso(new Date(), timeZone)
   const today = fromISODate(todayIso)
-  const firstHour = Math.floor(workdayStartMin / 60)
-  const lastHour = Math.ceil(workdayEndMin / 60)
+  const displayedDates = new Set(
+    (mode === 'day' ? [anchor] : weekDates(anchor, weekStartsOn)).map(toISODate),
+  )
+  const datedEvents = events.filter(event => displayedDates.has(event.date ?? '') && !isCalendarInformation(event))
+  const startMin = Math.max(0, Math.min(workdayStartMin, ...datedEvents.map(event => event.startMin)))
+  const endMin = Math.min(1440, Math.max(workdayEndMin, ...datedEvents.map(event => event.startMin + event.durationMin)))
+  const firstHour = Math.floor(startMin / 60)
+  const lastHour = Math.ceil(endMin / 60)
   const hours = Array.from(
     { length: Math.max(1, lastHour - firstHour + 1) },
     (_, index) => firstHour + index,
   )
-  const startMin = workdayStartMin
-  const endMin = workdayEndMin
   const height = (endMin - startMin) * PX_PER_MIN
   const [viewportWidth, setViewportWidth] =
     useState(() => window.innerWidth)
@@ -180,7 +185,7 @@ export function CalendarView({
 
     const visibleEvents = dates.flatMap(
       (date, visibleDay) =>
-        eventsOnDate(events, date).map((event) => ({
+        eventsOnDate(events, date).filter(event => !isCalendarInformation(event) && event.startMin < endMin && event.startMin + event.durationMin > startMin).map((event) => ({
           ...event,
           day: visibleDay,
         })),
@@ -204,6 +209,7 @@ export function CalendarView({
           >
             {dates.map((date) => {
               const heading = formatDayHeading(date)
+              const information = eventsOnDate(events, date).filter(event => isCalendarInformation(event) && event.externalId?.startsWith('edt:'))
               return (
                 <div
                   className={
@@ -213,6 +219,7 @@ export function CalendarView({
                 >
                   <span>{heading.weekday}</span>
                   <strong>{heading.day}</strong>
+                  {information.length > 0 && <small className="calendar-information" title={information.map(e => e.title).join(' · ')}>{information.map(e => e.title).join(' · ')}</small>}
                 </div>
               )
             })}
@@ -265,10 +272,10 @@ export function CalendarView({
                   const slotStartMin =
                     clamp(
                       snapMinutes(
-                        workdayStartMin + y / PX_PER_MIN,
+                        startMin + y / PX_PER_MIN,
                         planningStepMin,
                       ),
-                      workdayStartMin,
+                      startMin,
                       endMin - 30,
                     )
 
@@ -293,10 +300,10 @@ export function CalendarView({
                   const slotStartMin =
                     clamp(
                       snapMinutes(
-                        workdayStartMin + y / PX_PER_MIN,
+                        startMin + y / PX_PER_MIN,
                         planningStepMin,
                       ),
-                      workdayStartMin,
+                      startMin,
                       endMin - 30,
                     )
 
@@ -464,7 +471,7 @@ export function CalendarView({
 
         <div className="month-grid">
           {dates.map((date) => {
-            const dayEvents = eventsOnDate(events, date)
+            const dayEvents = eventsOnDate(events, date).filter(event => !isCalendarInformation(event) && !isRecoveryBlock(event)).sort((a, b) => Number(a.entityType !== 'task' && a.category !== 'course') - Number(b.entityType !== 'task' && b.category !== 'course') || a.startMin - b.startMin)
             const iso = toISODate(date)
             const outside =
               date.getMonth() !== month

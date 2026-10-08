@@ -1,6 +1,7 @@
 import type {
   PlannerEvent,
 } from './types'
+import { isCalendarInformation, isRecoveryBlock } from './calendarInformation'
 import { taskOverdueState } from './overdue'
 import { groupTaskEvents } from './taskIdentity'
 import {
@@ -14,6 +15,7 @@ export function buildWeeklyAnalytics(
   anchor: Date,
   weekStartsOn = 1,
 ) {
+  events = events.filter(event => !isCalendarInformation(event) && !isRecoveryBlock(event))
   const dates = weekDates(anchor, weekStartsOn)
   const weekDateSet =
     new Set(

@@ -1,4 +1,5 @@
 import { Pause, Play, Square } from 'lucide-react'
+import { isCalendarInformation } from '../domain/calendarInformation'
 import { useEffect, useMemo, useState } from 'react'
 import type { PlannerEvent } from '../domain/types'
 import {
@@ -53,6 +54,7 @@ export function NowView({
         .filter(
           (event) =>
             event.date === today &&
+            !isCalendarInformation(event) &&
             !event.completed,
         )
         .sort(

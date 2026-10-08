@@ -1,4 +1,5 @@
 import type { PlannerEvent } from '../domain/types'
+import { allPages } from './pagination'
 import {
   fromISODate,
   weekdayIndex,
@@ -51,31 +52,31 @@ export async function loadNormalizedPlanner(
     segmentsResult,
     calendarResult,
   ] = await Promise.all([
-    supabase
+    allPages((from, to) => supabase!
       .from('tasks')
       .select(
         'id,project_id,series_id,title,notes,category,priority,kind,duration_min,locked,status,updated_at',
       )
-      .eq('user_id', userId),
-    supabase
+      .eq('user_id', userId).order('id').range(from, to)),
+    allPages((from, to) => supabase!
       .from('task_constraints')
       .select(
         'task_id,earliest_date,deadline_date,window_start,window_end,energy,splittable,min_chunk_min,updated_at',
       )
-      .eq('user_id', userId),
-    supabase
+      .eq('user_id', userId).order('task_id').range(from, to)),
+    allPages((from, to) => supabase!
       .from('planned_segments')
       .select(
         'id,task_id,starts_at,ends_at,segment_index,status,updated_at',
       )
       .eq('user_id', userId)
-      .not('task_id', 'is', null),
-    supabase
+      .not('task_id', 'is', null).order('id').range(from, to)),
+    allPages((from, to) => supabase!
       .from('calendar_events')
       .select(
         'id,project_id,title,category,starts_at,ends_at,locked,source,external_id,updated_at',
       )
-      .eq('user_id', userId),
+      .eq('user_id', userId).order('id').range(from, to)),
   ])
 
   for (const result of [
@@ -272,20 +273,20 @@ export async function syncNormalizedPlanner(
     existingSegmentsResult,
     existingCalendarResult,
   ] = await Promise.all([
-    supabase
+    allPages((from, to) => supabase!
       .from('tasks')
       .select('id,status,completed_at')
-      .eq('user_id', userId),
-    supabase
+      .eq('user_id', userId).order('id').range(from, to)),
+    allPages((from, to) => supabase!
       .from('planned_segments')
       .select('id')
       .eq('user_id', userId)
-      .not('task_id', 'is', null),
-    supabase
+      .not('task_id', 'is', null).order('id').range(from, to)),
+    allPages((from, to) => supabase!
       .from('calendar_events')
       .select('id')
       .eq('user_id', userId)
-      .eq('source', 'manual'),
+      .eq('source', 'manual').order('id').range(from, to)),
   ])
 
   for (const result of [

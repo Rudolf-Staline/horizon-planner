@@ -1,4 +1,5 @@
 import { END_MIN, SNAP_MINUTES, START_MIN } from './constants'
+import { isCalendarInformation } from './calendarInformation'
 import {
   addDays,
   fromISODate,
@@ -34,8 +35,9 @@ export function overlaps(
 }
 
 export function conflictsFor(event: PlannerEvent, events: PlannerEvent[]) {
+  if (isCalendarInformation(event)) return []
   return events.filter(
-    (other) => other.id !== event.id && overlaps(event, other),
+    (other) => !isCalendarInformation(other) && other.id !== event.id && overlaps(event, other),
   )
 }
 
