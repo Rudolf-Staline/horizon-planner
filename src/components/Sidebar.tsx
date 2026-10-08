@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Settings,
   Target,
+  Wallet,
 } from 'lucide-react'
 import { Brand } from './Brand'
 
@@ -18,6 +19,7 @@ export type Section =
   | 'projects'
   | 'routines'
   | 'journal'
+  | 'finances'
   | 'focus'
   | 'analytics'
   | 'settings'
@@ -28,6 +30,7 @@ const mainItems = [
   ['tasks', 'Tâches', CheckSquare2],
   ['projects', 'Projets', FolderKanban],
   ['routines', 'Routines', Repeat2],
+  ['finances', 'Finances', Wallet],
 ] as const
 
 const secondaryItems = [

@@ -8,6 +8,7 @@ const sectionLabels: Record<Section, string> = {
   calendar: 'Calendrier', tasks: 'Tâches', projects: 'Projets',
   routines: 'Routines', focus: 'Focus', analytics: 'Analyses',
   journal: 'Journal', settings: 'Paramètres', admin: 'Administration',
+  finances: 'Finances',
 }
 
 interface Props {

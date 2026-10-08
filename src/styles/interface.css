@@ -86,6 +86,7 @@ button:disabled { cursor: not-allowed; }
 .day-head span { text-transform: uppercase; letter-spacing: .07em; font-size: 10px; color: var(--muted); font-weight: 600; }
 .day-head strong { font-size: 20px; font-weight: 650; }
 .day-head.today { background: #f2f6ff; }
+.calendar-information { max-width: 100%; padding: 0 4px; font-size: 9px; color: #52617a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .day-head.today strong { width: 32px; height: 32px; font-size: 18px; box-shadow: 0 3px 8px rgb(36 99 235 / 18%); }
 .hour-label { font-size: 10px; font-variant-numeric: tabular-nums; color: #7a879a; }
 .hour-line { border-color: #f0f3f7; }

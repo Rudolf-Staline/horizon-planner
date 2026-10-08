@@ -1,4 +1,7 @@
 import { validateJournal, type JournalDraft } from './journal'
+import { allPages } from './pagination'
+import { loadFinances, saveFinances } from './finances'
+import { validateFinances, type FinanceState } from '../domain/finances'
 import type { PlannerEvent } from '../domain/types'
 import { supabase } from '../lib/supabase'
 import { localDateTimeToIso } from '../utils/timezone'
@@ -16,6 +19,7 @@ export type HorizonBackup = {
   calendarSources: Record<string, unknown>[]
   calendarEvents: Record<string, unknown>[]
   journalEntries?: Record<string, unknown>[]
+  finances?: FinanceState
   plannedSegments: Record<string, unknown>[]
 }
 
@@ -35,10 +39,10 @@ async function journalRows(userId: string) {
 }
 
 async function rows(table: string, userId: string) {
-  const { data, error } = await requireSupabase()
+  const { data, error } = await allPages((from, to) => requireSupabase()
     .from(table)
     .select('*')
-    .eq('user_id', userId)
+    .eq('user_id', userId).order(table === 'task_constraints' ? 'task_id' : 'id').range(from, to))
 
   if (error) throw error
   return (data ?? []) as Record<string, unknown>[]
@@ -46,7 +50,7 @@ async function rows(table: string, userId: string) {
 
 export async function exportAccountBackup(userId: string): Promise<HorizonBackup> {
   const client = requireSupabase()
-  const [profileResult, projects, tasks, taskConstraints, routines, routineExceptions, calendarSources, calendarEvents, plannedSegments, journalEntries] = await Promise.all([
+  const [profileResult, projects, tasks, taskConstraints, routines, routineExceptions, calendarSources, calendarEvents, plannedSegments, journalEntries, finances] = await Promise.all([
     client.from('profiles').select('*').eq('id', userId).single(),
     rows('projects', userId),
     rows('tasks', userId),
@@ -57,6 +61,7 @@ export async function exportAccountBackup(userId: string): Promise<HorizonBackup
     rows('calendar_events', userId),
     rows('planned_segments', userId),
     journalRows(userId),
+    loadFinances(userId),
   ])
 
   if (profileResult.error) throw profileResult.error
@@ -75,6 +80,7 @@ export async function exportAccountBackup(userId: string): Promise<HorizonBackup
     calendarEvents,
     plannedSegments,
     journalEntries,
+    finances: finances.state,
   }
 }
 
@@ -102,6 +108,8 @@ export async function importAccountBackup(userId: string, backup: HorizonBackup)
     validateJournal(draft as JournalDraft)
     return draft
   })
+  if (backup.finances !== undefined) validateFinances(backup.finances)
+  const financeSnapshot = backup.finances === undefined ? null : await loadFinances(userId)
   const client = requireSupabase()
   const upsertRows = async (table: string, values: Record<string, unknown>[]) => {
     if (values.length === 0) return
@@ -138,6 +146,7 @@ export async function importAccountBackup(userId: string, backup: HorizonBackup)
   await upsertRows('calendar_events', backup.calendarEvents)
   await upsertRows('planned_segments', backup.plannedSegments)
   await upsertRows('journal_entries', journalEntries)
+  if (backup.finances && financeSnapshot) await saveFinances(backup.finances, financeSnapshot.revision)
 }
 
 function downloadFile(filename: string, content: string, type: string) {

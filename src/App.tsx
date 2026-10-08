@@ -1,4 +1,5 @@
 import { JournalView } from './components/JournalView'
+import { FinancesView } from './components/FinancesView'
 import { useEffect, useMemo, useState } from 'react'
 import { AccountDialog } from './components/AccountDialog'
 import { BatchQuickCreate } from './components/BatchQuickCreate'
@@ -512,6 +513,8 @@ export default function App() {
           )}
 
         {planner.cloudUserId && <JournalView key={planner.cloudUserId} userId={planner.cloudUserId} timeZone={planner.cloudPreferences.timezone} active={section === 'journal'}/>}
+
+        {section === 'finances' && planner.cloudUserId && <FinancesView key={planner.cloudUserId} userId={planner.cloudUserId} today={zonedDateToIso(new Date(), planner.cloudPreferences.timezone)}/>}
 
         {section === 'tasks' && (
           planner.cloudUserId && (
