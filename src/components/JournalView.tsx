@@ -3,6 +3,7 @@ import {
   Archive,
   ArrowUpRight,
   BookOpen,
+  CalendarDays,
   Check,
   ChevronLeft,
   ChevronDown,
@@ -260,13 +261,14 @@ export function JournalView({
     >
       <header className="section-header journal-heading">
         <div>
-          <span className="section-kicker">LE FIL DES JOURS</span>
+          <span className="section-kicker">HORIZON / CARNET PERSONNEL</span>
           <h1>
-            Mon journal<span aria-hidden="true">.</span>
+            Journal<span aria-hidden="true">.</span>
           </h1>
-          <p>Gardez une trace de ce qui compte pour vous.</p>
+          <p>Les idées, les journées, ce qui mérite de rester.</p>
         </div>
         <div className="journal-heading-actions">
+          <span className="journal-today"><CalendarDays size={16}/>{dateLabel(zonedDateToIso(new Date(), timeZone))}</span>
           <button
             ref={modeRef}
             className="journal-mode"
@@ -295,7 +297,7 @@ export function JournalView({
           <div className="journal-editor-top">
             <span className="journal-folio">
               <BookOpen size={15} />
-              {original ? 'Une page de votre histoire' : 'UNE NOUVELLE PAGE'}
+              {original ? 'PAGE RETROUVÉE' : 'PAGE OUVERTE'}
             </span>
             <span
               className={`journal-status ${dirty ? 'is-dirty' : ''} ${draft.archived ? 'is-archived' : ''}`}
@@ -338,7 +340,7 @@ export function JournalView({
                   />
                 </label>
                 <span className="journal-date-note">
-                  Une journée à raconter
+                  Prenez le temps de poser vos mots.
                 </span>
               </div>
               <label className="journal-title">
@@ -474,8 +476,8 @@ export function JournalView({
           hidden={focused}
         >
           <div className="journal-history-heading">
-            <span className="section-kicker">AU FIL DU TEMPS</span>
-            <h2>Vos pages</h2>
+            <span className="section-kicker">ARCHIVES VIVANTES</span>
+            <h2>Au fil des jours</h2>
           </div>
           <div
             className="journal-tabs"
